@@ -8,7 +8,5 @@ setup(name='perspect',
       author_email='alexandra.diem@gmail.com',
       license='BSD3',
       packages=['perspect'],
-      install_requires=[
-          'dolfin', 'pulse'
-      ],
+      install_requires=[],
       zip_safe=False)
