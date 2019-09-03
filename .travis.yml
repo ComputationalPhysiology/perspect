@@ -10,7 +10,7 @@ services:
   - docker
 
 
-install:
+before_install:
   - docker build -t perspect .
   - docker run -d -p 127.0.0.1:80:4567 perspect:latest /bin/sh -c "cd /home/fenics/shared;"
 
