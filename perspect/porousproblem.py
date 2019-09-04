@@ -26,11 +26,14 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, **kwargs):
+    def __init__(self, geometry, parameters=None, **kwargs):
         self.geometry = geometry
         self.mesh = geometry.mesh
         self.params = None
         self.markers = get_lv_marker(self.geometry)
+
+        if parameters is None:
+            self.parameters = PorousProblem.default_parameters()
         # self.N = int(self.params['Parameter']['N'])
         #
         # if boundaries != None:
@@ -87,6 +90,20 @@ class PorousProblem(object):
         # # Set variational forms
         # self.SForm, self.dSForm = self.set_solid_variational_form({})
         # self.MForm, self.dMForm = self.set_fluid_variational_form()
+
+
+    @staticmethod
+    def default_parameters():
+        """
+        Default parameters for the porous problem.
+
+        Taken from [Cookson2012, Michler2013]
+        """
+
+        return {
+            'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
+            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5
+        }
 
 
     def create_function_spaces(self):
