@@ -9,13 +9,25 @@ from dolfin import (
 from pulse import HeartGeometry
 from pulse.utils import get_lv_marker
 
+NeumannBC = namedtuple("NeumannBC", ["inflow", "marker", "name"])
 
-flags = ["-O3", "-ffast-math", "-march=native"]
-df.parameters["form_compiler"]["quadrature_degree"] = 4
-df.parameters["form_compiler"]["representation"] = "uflacs"
-df.parameters["form_compiler"]["cpp_optimize"] = True
-df.parameters["form_compiler"]["cpp_optimize_flags"] = " ".join(flags)
-df.parameters["allow_extrapolation"] = True
+
+def perfusion_boundary_conditions(geometry, inflow=0.0):
+    # Neumann BC
+    lv_marker = get_lv_marker(geometry)
+    lv_inflow = NeumannBC(
+        inflow=df.Constant(0.0, name="lv_inflow"), marker=lv_marker, name="lv"
+    )
+    neumann_bc = [lv_inflow]
+
+    if geometry.is_biv:
+        rv_pressure = NeumannBC(
+            inflow=Constant(0.0, name="rv_inflow"),
+            marker=geometry.markers["ENDO_RV"][0],
+            name="rv",
+        )
+
+        neumann_bc += [rv_inflow]
 
 
 class PorousProblem(object):
@@ -31,23 +43,21 @@ class PorousProblem(object):
         self.params = None
         self.markers = get_lv_marker(self.geometry)
 
+        # Set parameters
         if parameters is None:
             self.parameters = PorousProblem.default_parameters()
 
+        # Set boundary conditions
         if bcs is None:
             if isinstance(geometry, HeartGeometry):
                 self.bcs_parameters = PorousProblem.default_bcs_parameters()
+            self.bcs = perfusion_boundary_conditions(geometry,
+                                                        **self.bcs_parameters)
 
-        #
-        # if territories == None:
-        #     self.territories = MeshFunction("size_t", mesh, mesh.topology().dim())
-        #     self.territories.set_all(0)
-        # else:
-        #     self.territories = territories
-        #
-        # # Create function spaces
-        # self.FS_S, self.FS_M, self.FS_F, self.FS_V = self.create_function_spaces()
-        #
+        # Create function spaces
+        self._init_spaces()
+        self._init_forms()
+
         # if fibers != None:
         #     self.fibers = Function(self.FS_V, fibers)
         # else:
@@ -109,107 +119,20 @@ class PorousProblem(object):
         return dict(inflow=0.0)
 
 
-    def create_function_spaces(self):
-        V1 = VectorElement('P', self.mesh.ufl_cell(), 1)
-        V2 = VectorElement('P', self.mesh.ufl_cell(), 2)
-        P1 = FiniteElement('P', self.mesh.ufl_cell(), 1)
+    def _init_spaces(self):
         P2 = FiniteElement('P', self.mesh.ufl_cell(), 2)
-        TH = MixedElement([V2, P1]) # Taylor-Hood element
-        FS_S = FunctionSpace(self.mesh, TH)
-        if self.N == 1:
-            FS_M = FunctionSpace(self.mesh, P1)
+        N = self.parameters['N']
+        if N == 1:
+            elem = P2
         else:
-            M = MixedElement([P1 for i in range(self.N)])
-            FS_M = FunctionSpace(self.mesh, M)
-        FS_F = FunctionSpace(self.mesh, P2)
-        FS_V = FunctionSpace(self.mesh, V1)
-        return FS_S, FS_M, FS_F, FS_V
+            elem = MixedElement([P1 for i in range(N)])
 
+        mesh = self.geometry.mesh
+        self.state_space = FunctionSpace(mesh, elem)
+        self.state = Function(self.state_space)
+        self.state_previous = Function(self.state_space)
+        self.state_test = TestFunction(self.state_space)
 
-    def add_solid_dirichlet_condition(self, condition, *args, **kwargs):
-        if 'n' in kwargs.keys():
-            n = kwargs['n']
-            dkwargs = {}
-            if 'method' in kwargs.keys():
-                dkwargs['method'] = kwargs['method']
-            self.sbcs.append(DirichletBC(self.FS_S.sub(0).sub(n), condition,
-                                *args, **dkwargs))
-        else:
-            self.sbcs.append(DirichletBC(self.FS_S.sub(0), condition,
-                                *args, **kwargs))
-        if 'time' in kwargs.keys() and kwargs['time']:
-            self.tconditions.append(condition)
-
-
-    def add_solid_neumann_conditions(self, conditions, boundaries):
-        self.SForm, self.dSForm =\
-                    self.set_solid_variational_form(zip(conditions, boundaries))
-
-
-    def add_fluid_dirichlet_condition(self, condition, *args, **kwargs):
-        if 'source' in kwargs.keys() and kwargs['source']:
-            sub = 0 if self.N > 1 else 0
-        else:
-            sub = self.N-1
-        if 'time' in kwargs.keys() and kwargs['time']:
-            self.tconditions.append(condition)
-        if self.N == 1:
-            self.fbcs.append(DirichletBC(self.FS_M, condition, *args))
-        else:
-            self.fbcs.append(DirichletBC(self.FS_M.sub(sub), condition, *args))
-
-
-    def add_pressure_dirichlet_condition(self, condition, *args, **kwargs):
-        if 'source' in kwargs.keys() and kwargs['source']:
-            sub = 0 if self.N > 1 else 0
-        else:
-            sub = self.N-1
-        if 'time' in kwargs.keys() and kwargs['time']:
-            self.tconditions.append(condition)
-        self.pbcs.append(DirichletBC(self.FS_F, condition, *args))
-
-
-    def sum_fluid_mass(self):
-        if self.N == 1:
-            return self.mf/self.params['Parameter']['rho']
-        else:
-            return sum([self.mf[i]
-                    for i in range(self.N)])/self.params['Parameter']['rho']
-
-
-    def set_solid_variational_form(self, neumann_bcs):
-
-        U = self.Us
-        dU, L = split(U)
-        V = TestFunction(self.FS_S)
-        v, w = split(V)
-
-        # parameters
-        rho = self.rho()
-        phi0 = Constant(self.params['Parameter']['phi'])
-
-        # fluid Solution
-        m = self.sum_fluid_mass()
-
-        # Kinematics
-        n = FacetNormal(self.mesh)
-        d = dU.geometric_dimension()
-        self.I = Identity(d)
-        self.F = variable(self.I + ufl_grad(dU))
-        self.J = variable(det(self.F))
-        self.C = variable(self.F.T*self.F)
-
-        self.Psi = self.material.constitutive_law(J=self.J, C=self.C,
-                                                M=m, rho=rho, phi=phi0)
-        Psic = self.Psi*dx + L*(self.J-Constant(1)-m/rho)*dx
-
-        for condition, boundary in neumann_bcs:
-            Psic += dot(condition*n, dU)*self.ds(boundary)
-
-        Form = derivative(Psic, U, V)
-        dF = derivative(Form, U, TrialFunction(self.FS_S))
-
-        return Form, dF
 
 
     def set_fluid_variational_form(self):
