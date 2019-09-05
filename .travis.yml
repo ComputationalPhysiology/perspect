@@ -14,7 +14,7 @@ before_install:
   - docker build -t perspect .
   - docker run -d -p 127.0.0.1:80:4567 perspect:latest /bin/sh -c "cd /home/fenics/shared;"
   - docker ps -a
-  - docker run perspect:latest /bin/sh -c "cd /home/fenics/shared;"
+  - docker run perspect:latest /bin/sh -c "cd /home/fenics/shared; sudo python3 setup.py install"
 
 
 script:

@@ -7,8 +7,7 @@ from dolfin import (
 )
 
 from pulse import HeartGeometry
-from pulse.utils import set_default_none, make_logger, get_lv_marker
-from pulse import parameters
+from pulse.utils import get_lv_marker
 
 
 flags = ["-O3", "-ffast-math", "-march=native"]
@@ -26,7 +25,7 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, parameters=None, **kwargs):
+    def __init__(self, geometry, bcs=None, parameters=None, **kwargs):
         self.geometry = geometry
         self.mesh = geometry.mesh
         self.params = None
@@ -34,12 +33,11 @@ class PorousProblem(object):
 
         if parameters is None:
             self.parameters = PorousProblem.default_parameters()
-        # self.N = int(self.params['Parameter']['N'])
-        #
-        # if boundaries != None:
-        #     self.ds = ds(subdomain_data=boundaries)
-        # else:
-        #     self.ds = ds()
+
+        if bcs is None:
+            if isinstance(geometry, HeartGeometry):
+                self.bcs_parameters = PorousProblem.default_bcs_parameters()
+
         #
         # if territories == None:
         #     self.territories = MeshFunction("size_t", mesh, mesh.topology().dim())
@@ -104,6 +102,11 @@ class PorousProblem(object):
             'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
             'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5
         }
+
+
+    @staticmethod
+    def default_bcs_parameters():
+        return dict(inflow=0.0)
 
 
     def create_function_spaces(self):
