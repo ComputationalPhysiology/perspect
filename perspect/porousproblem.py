@@ -3,6 +3,7 @@ from collections import namedtuple
 import dolfin as df
 from dolfin import (
         Constant, FiniteElement, FunctionSpace, Function, TestFunction,
+        Identity,
         NonlinearVariationalProblem, NonlinearVariationalSolver
 )
 
@@ -56,7 +57,7 @@ class PorousProblem(object):
 
         # Create function spaces
         self._init_spaces()
-        self._init_forms()
+        self._init_porous_form()
 
         # if fibers != None:
         #     self.fibers = Function(self.FS_V, fibers)
@@ -133,6 +134,42 @@ class PorousProblem(object):
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
 
+
+    def _init_porous_form(self):
+        m = self.state
+        m_n = self.state_previous
+        v = self.state_test
+        p = Function(self.state_space)
+
+        # Get parameters
+        qi = self.parameters['qi']
+        qo = self.parameters['qo']
+        rho = self.parameters['rho']
+        beta = self.parameters['beta']
+        K = self.parameters['K']
+        dt = self.parameters['dt']
+        k = 1/dt
+        theta = self.parameters['theta']
+        theta_ = 1-theta
+
+        # Crank-Nicolson time scheme
+        M = theta*m + theta_*m_n
+
+        # Mechanics
+        dx = self.geometry.dx
+        d = self.state.geometric_dimension()
+        J = Constant(1)
+        F = Identity(d)
+
+        # porous dynamics
+        A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
+        self._form = k*(m - m_n)*v*dx + df.inner(-A*df.grad(p), df.grad(v))*dx
+
+        # mechanics
+        # Form += dot(grad(M), k*(dU-dU_n))*v*dx
+
+        # Add inflow/outflow terms
+        self._form += -rho*qi*v*dx + rho*qo*v*dx
 
 
     def set_fluid_variational_form(self):
