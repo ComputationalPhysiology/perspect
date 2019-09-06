@@ -42,12 +42,12 @@ class PorousProblem(object):
                 solver_parameters=None, **kwargs):
         self.geometry = geometry
         self.mesh = geometry.mesh
-        self.params = None
         self.markers = get_lv_marker(self.geometry)
 
         # Set parameters
-        if parameters is None:
-            self.parameters = PorousProblem.default_parameters()
+        self.parameters = PorousProblem.default_parameters()
+        if parameters is not None:
+            self.parameters.update(parameters)
 
         # Set boundary conditions
         if bcs is None:
