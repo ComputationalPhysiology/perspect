@@ -38,7 +38,8 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, bcs=None, parameters=None, **kwargs):
+    def __init__(self, geometry, bcs=None, parameters=None,
+                solver_parameters=None, **kwargs):
         self.geometry = geometry
         self.mesh = geometry.mesh
         self.params = None
@@ -59,46 +60,11 @@ class PorousProblem(object):
         self._init_spaces()
         self._init_porous_form()
 
-        # if fibers != None:
-        #     self.fibers = Function(self.FS_V, fibers)
-        # else:
-        #     self.fibers = None
-        #
-        # # Create solution functions
-        # self.Us = Function(self.FS_S)
-        # self.Us_n = Function(self.FS_S)
-        # self.mf = Function(self.FS_M)
-        # self.mf_n = Function(self.FS_M)
-        # self.Uf = [Function(self.FS_V) for i in range(self.N)]
-        # if self.N == 1:
-        #     self.p = [Function(self.FS_M)]
-        # else:
-        #     self.p =\
-        #         [Function(self.FS_M.sub(0).collapse()) for i in range(self.N)]
-        #
-        # rho = self.rho()
-        # phi0 = self.phi()
-        # if self.N == 1:
-        #     self.phif = [variable(self.mf/rho + phi0)]
-        # else:
-        #     self.phif = [variable(self.mf[i]/rho + phi0) for i in range(self.N)]
-        #
-        # self.sbcs = []
-        # self.fbcs = []
-        # self.pbcs = []
-        # self.tconditions = []
-        #
-        # # Material
-        # if self.params['Material']["material"] == "isotropic exponential form":
-        #     self.material = IsotropicExponentialFormMaterial(self.params['Material'])
-        # elif self.params['Material']["material"] == "linear poroelastic":
-        #     self.material = LinearPoroelasticMaterial(self.params['Material'])
-        # elif self.params['Material']["material"] == "Neo-Hookean":
-        #     self.material = NeoHookeanMaterial(self.params['Material'])
-        #
-        # # Set variational forms
-        # self.SForm, self.dSForm = self.set_solid_variational_form({})
-        # self.MForm, self.dMForm = self.set_fluid_variational_form()
+        # Set up solver
+        self.solver_parameters = PorousProblem.defaul_solver_parameters()
+        if solver_parameters is not None:
+            self.solver_parameters.update(solver_parameters)
+
 
 
     @staticmethod
@@ -118,6 +84,11 @@ class PorousProblem(object):
     @staticmethod
     def default_bcs_parameters():
         return dict(inflow=0.0)
+
+
+    @staticmethod
+    def defaul_solver_parameters():
+        return NonlinearVariationalSolver.default_parameters()
 
 
     def _init_spaces(self):
@@ -170,71 +141,6 @@ class PorousProblem(object):
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
-
-
-    def set_fluid_variational_form(self):
-
-        m = self.mf
-        m_n = self.mf_n
-        dU, L = self.Us.split(True)
-        dU_n, L_n = self.Us_n.split(True)
-
-        # Parameters
-        self.qi = self.q_in()
-        q_out = self.q_out()
-        rho = self.rho()
-        beta = self.beta()
-        k = Constant(1/self.dt())
-        dt = Constant(self.dt())
-        th, th_ = self.theta()
-        n = FacetNormal(self.mesh)
-
-        # VK = TensorFunctionSpace(self.mesh, "P", 1)
-        # if d == 2:
-        #     exp = Expression((('0.5', '0.0'),('0.0', '1.0')), degree=1)
-        # elif d == 3:
-        #     exp = Expression((('1.0', '0.0', '0.0'),('0.0', '1.0', '0.0'),
-        #                         ('0.0', '0.0', '1.0')), degree=1)
-        # self.K = project(Ki*exp, VK, solver_type='mumps')
-
-        # theta-rule / Crank-Nicolson
-        M = th*m + th_*m_n
-
-        # Fluid variational form
-        A = variable(rho * self.J * inv(self.F) * self.K() * inv(self.F.T))
-        if self.N == 1:
-            vm = TestFunction(self.FS_M)
-            Form = k*(m - m_n)*vm*dx + dot(grad(M), k*(dU-dU_n))*vm*dx +\
-                    inner(-A*grad(self.p[0]), grad(vm))*dx
-
-            # Add inflow terms
-            Form += -rho*self.qi*vm*dx
-
-            # Add outflow term
-            Form += rho*q_out*vm*dx
-
-        else:
-            vm = TestFunctions(self.FS_M)
-            Form = sum([k*(m[i] - m_n[i])*vm[i]*dx for i in range(self.N)])\
-                + sum([dot(grad(M[i]), k*(dU-dU_n))*vm[i]*dx
-                                                    for i in range(self.N)])\
-                + sum([inner(-A*grad(self.p[i]), grad(vm[i]))*dx
-                                                    for i in range(self.N)])
-
-            # Compartment exchange
-            for i in range(len(beta)):
-                Form += -self.J*beta[i]*((self.p[i] - self.p[i+1])*vm[i] +\
-                                        (self.p[i+1] - self.p[i])*vm[i+1])*dx
-
-            # Add inflow terms
-            Form += -rho*self.qi*vm[0]*dx
-
-            # Add outflow term
-            Form += rho*q_out*vm[-1]*dx
-
-        dF = derivative(Form, m, TrialFunction(self.FS_M))
-
-        return Form, dF
 
 
     def fluid_solid_coupling(self):
