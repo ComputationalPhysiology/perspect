@@ -55,6 +55,8 @@ class PorousProblem(object):
                 self.bcs_parameters = PorousProblem.default_bcs_parameters()
             self.bcs = perfusion_boundary_conditions(geometry,
                                                         **self.bcs_parameters)
+        else:
+            self.bcs = bcs
 
         # Create function spaces
         self._init_spaces()
