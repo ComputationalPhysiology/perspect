@@ -5,7 +5,7 @@ notifications:
     recipients:
       - alexandra.diem@gmail.com
     on_success: never   # default: change
-    on_failure: never  # default: always
+    on_failure: always  # default: always
 
 matrix:
     include:
