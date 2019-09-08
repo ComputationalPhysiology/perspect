@@ -133,10 +133,9 @@ class PorousProblem(object):
         dt = self.parameters['dt']
         k = 1/dt
         theta = self.parameters['theta']
-        theta_ = 1-theta
 
         # Crank-Nicolson time scheme
-        M = theta*m + theta_*m_n
+        M = theta*m + (1-theta)*m_n
 
         # Mechanics
         dx = self.geometry.dx

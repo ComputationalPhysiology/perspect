@@ -29,6 +29,11 @@ def test_init_spaces(porous_problem):
     assert p.state_test.function_space() == p.state_space
 
 
+def test_init_porous_form(porous_problem):
+    p = porous_problem
+    assert sum(df.assemble(p._form)[:]) == 0
+
+
 @pytest.fixture
 def geometry():
     geometry = perspect.HeartGeometry.from_file(perspect.mesh_paths["simple_ellipsoid"])
