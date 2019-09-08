@@ -8,7 +8,13 @@ from dolfin import (
 )
 
 from pulse import HeartGeometry
-from pulse.utils import get_lv_marker
+from pulse.utils import get_lv_marker, set_default_none
+
+
+BoundaryConditions = namedtuple(
+    "BoundaryConditions", ["neumann"]
+)
+set_default_none(BoundaryConditions, ())
 
 NeumannBC = namedtuple("NeumannBC", ["inflow", "marker", "name"])
 
@@ -29,6 +35,10 @@ def perfusion_boundary_conditions(geometry, inflow=0.0):
         )
 
         neumann_bc += [rv_inflow]
+
+    boundary_conditions = BoundaryConditions(neumann=neumann_bc)
+
+    return boundary_conditions
 
 
 class PorousProblem(object):
