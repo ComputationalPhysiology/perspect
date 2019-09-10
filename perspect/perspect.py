@@ -9,5 +9,9 @@ from perspect.porousproblem import PorousProblem
 class Perspect(object):
 
     def __init__(self, geometry, parameters=None):
-        mprob = PorousProblem(geometry, parameters=parameters,
+        self.mprob = PorousProblem(geometry, parameters=parameters,
                         solver_parameters={'newton_solver': {'linear_solver': 'mumps'}})
+
+
+    def update_mechanics(self, displacement):
+        self.mprob.update_mechanics(displacement)

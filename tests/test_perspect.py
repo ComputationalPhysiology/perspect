@@ -3,9 +3,18 @@ import pulse
 import dolfin as df
 import pytest
 
-def test_perspect(geometry, material, pulse_bcs):
-    p = perspect.Perspect(geometry)
+def test_perspect(geometry, material, pulse_bcs, perspect_parameters):
+    p = perspect.Perspect(geometry, parameters=perspect_parameters)
     m = pulse.MechanicsProblem(geometry, material, pulse_bcs)
+
+    # Solve mechanics problem
+    m.solve()
+
+    # Get mechanics solution
+    mu, mp = m.state.split(deepcopy=True)
+    mn = df.Function(m.state_space.sub(0).collapse()) # previous time step
+
+    p.update_mechanics(mu-mn)
     assert 1==1
 
 
@@ -62,3 +71,8 @@ def pulse_bcs(geometry):
                                    neumann=neumann_bc,
                                    robin=robin_bc)
     return bcs
+
+@pytest.fixture
+def perspect_parameters():
+    parameters = {'mechanics': True}
+    return parameters

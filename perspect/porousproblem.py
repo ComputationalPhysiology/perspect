@@ -3,7 +3,7 @@ from collections import namedtuple
 import dolfin as df
 from dolfin import (
         Constant, FiniteElement, FunctionSpace, Function, TestFunction,
-        Identity,
+        Identity, VectorElement,
         NonlinearVariationalProblem, NonlinearVariationalSolver
 )
 
@@ -89,7 +89,8 @@ class PorousProblem(object):
 
         return {
             'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
-            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5
+            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5,
+            'mechanics': False
         }
 
 
@@ -110,12 +111,19 @@ class PorousProblem(object):
             elem = P2
         else:
             elem = MixedElement([P1 for i in range(N)])
+        v_elem = VectorElement('P', self.mesh.ufl_cell(), 1)
 
         mesh = self.geometry.mesh
         self.state_space = FunctionSpace(mesh, elem)
+        self.vector_space = FunctionSpace(mesh, v_elem)
         self.state = Function(self.state_space)
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
+        self.displacement = Function(self.vector_space)
+
+
+    def update_mechanics(self, displacement):
+        self.displacement = displacement
 
 
     def _init_porous_form(self):
@@ -144,11 +152,15 @@ class PorousProblem(object):
         F = Identity(d)
 
         # porous dynamics
-        A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
+        if self.parameters['mechanics']:
+            A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
+        else:
+            A = rho*K
         self._form = k*(m - m_n)*v*dx + df.inner(-A*df.grad(p), df.grad(v))*dx
 
-        # mechanics
-        # Form += dot(grad(M), k*(dU-dU_n))*v*dx
+        # add mechanics
+        if self.parameters['mechanics']:
+            self._form += df.dot(df.grad(M), k*self.displacement)*v*dx
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
