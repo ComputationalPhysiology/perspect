@@ -73,7 +73,7 @@ class PorousProblem(object):
         self._init_porous_form()
 
         # Set up solver
-        self.solver_parameters = PorousProblem.defaul_solver_parameters()
+        self.solver_parameters = PorousProblem.default_solver_parameters()
         if solver_parameters is not None:
             self.solver_parameters.update(solver_parameters)
 
