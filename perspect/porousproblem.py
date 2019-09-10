@@ -99,7 +99,7 @@ class PorousProblem(object):
 
 
     @staticmethod
-    def defaul_solver_parameters():
+    def default_solver_parameters():
         return NonlinearVariationalSolver.default_parameters()
 
 
