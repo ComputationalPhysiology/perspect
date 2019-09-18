@@ -10,7 +10,8 @@ class Perspect(object):
 
     def __init__(self, geometry, material, bcs=None, parameters=None):
         self.pprob = PorousProblem(geometry, parameters=parameters)
-        self.mprob = pulse.MechanicsProblem(geometry, material, bcs=bcs)
+        self.mprob = pulse.MechanicsProblem(geometry, material, bcs=bcs,
+                                            bcs_parameters={"": ""})
 
 
     def update_mechanics(self, displacement):
