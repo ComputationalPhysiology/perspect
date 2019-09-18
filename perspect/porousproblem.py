@@ -175,7 +175,7 @@ class PorousProblem(object):
 
         """
 
-        self._jacobian = dolfin.derivative(
+        self._jacobian = df.derivative(
             self._form, self.state, TrialFunction(self.state_space)
         )
 
