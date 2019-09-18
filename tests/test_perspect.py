@@ -4,7 +4,7 @@ import dolfin as df
 import pytest
 
 def test_perspect(geometry, material, pulse_bcs, perspect_parameters):
-    p = perspect.Perspect(geometry, parameters=perspect_parameters)
+    p = perspect.Perspect(geometry, material, parameters=perspect_parameters)
     m = pulse.MechanicsProblem(geometry, material, pulse_bcs)
 
     # Solve mechanics problem
