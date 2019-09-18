@@ -18,7 +18,7 @@ class Perspect(object):
         self.pprob.update_mechanics(displacement)
 
 
-    def solve():
+    def solve(self):
         self.solve_mechanics()
         mu, mp = self.mprob.state.split(deepcopy=True)
         self.update_mechanics(mu)
@@ -29,5 +29,5 @@ class Perspect(object):
         self.mprob.solve()
 
 
-    def solve_porous():
-        self.pprob.solve(self)
+    def solve_porous(self):
+        self.pprob.solve()
