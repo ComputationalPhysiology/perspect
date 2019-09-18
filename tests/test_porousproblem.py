@@ -1,4 +1,4 @@
-import perspect
+from perspect import (PorousProblem, HeartGeometry, HolzapfelOgden, mesh_paths)
 import pulse
 import dolfin as df
 import pytest
@@ -6,7 +6,7 @@ import pytest
 def test_porousproblem(geometry):
     parameters = {'K': 1}
     bcs = None
-    p = perspect.PorousProblem(geometry, bcs=bcs, parameters=parameters)
+    p = PorousProblem(geometry, bcs=bcs, parameters=parameters)
 
     assert geometry == p.geometry
     assert geometry.mesh == p.mesh
@@ -38,20 +38,21 @@ def test_init_porous_form(porous_problem):
 def test_update_mechanics(porous_problem, mechanics_problem):
     mechanics_problem.solve()
     mu, mp = mechanics_problem.state.split(deepcopy=True)
-    assert(df.errornorm(porous_problem.displacement, mu) < 1e-5)
+    porous_problem.update_mechanics(mu)
+    assert(df.errornorm(porous_problem.displacement, mu) < 1e-10)
 
 
 @pytest.fixture
 def geometry():
-    geometry = perspect.HeartGeometry.from_file(perspect.mesh_paths["simple_ellipsoid"])
+    geometry = HeartGeometry.from_file(mesh_paths["simple_ellipsoid"])
     return geometry
 
 @pytest.fixture
 def material(geometry):
     activation = df.Function(df.FunctionSpace(geometry.mesh, "R", 0))
     activation.assign(df.Constant(0.0))
-    matparams = pulse.HolzapfelOgden.default_parameters()
-    material = pulse.HolzapfelOgden(activation=activation,
+    matparams = HolzapfelOgden.default_parameters()
+    material = HolzapfelOgden(activation=activation,
                                     parameters=matparams,
                                     active_model="active_stress",
                                     eta=0.3,
@@ -72,7 +73,7 @@ def parameters():
 
 @pytest.fixture
 def porous_problem(geometry, bcs, parameters):
-    porous_problem = perspect.PorousProblem(geometry, bcs=bcs, parameters=parameters)
+    porous_problem = PorousProblem(geometry, bcs=bcs, parameters=parameters)
     return porous_problem
 
 @pytest.fixture

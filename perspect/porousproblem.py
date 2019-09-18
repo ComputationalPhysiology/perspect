@@ -207,4 +207,7 @@ class PorousProblem(object):
         else:
             logger.debug("Solved")
 
+            # Update old state
+            self.state_previous.assign(self.state)
+
         return nliter, nlconv
