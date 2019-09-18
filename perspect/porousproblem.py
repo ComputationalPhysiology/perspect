@@ -125,10 +125,6 @@ class PorousProblem(object):
         self.displacement = Function(self.vector_space)
 
 
-    def update_mechanics(self, displacement):
-        self.displacement = displacement
-
-
     def _init_porous_form(self):
         m = self.state
         m_n = self.state_previous
@@ -167,6 +163,10 @@ class PorousProblem(object):
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
+
+
+    def update_mechanics(self, displacement):
+        self.displacement = displacement
 
 
     def solve(self):
