@@ -1,34 +1,36 @@
-import perspect
+from perspect import (HeartGeometry, HolzapfelOgden, Perspect, mesh_paths)
 import pulse
 import dolfin as df
 import pytest
 
-def test_perspect(geometry, material, pulse_bcs, perspect_parameters):
-    p = perspect.Perspect(geometry, material, parameters=perspect_parameters)
-    m = pulse.MechanicsProblem(geometry, material, pulse_bcs)
+def test_perspect(perspect, geometry, material, mechanics_bcs):
+    assert perspect.pprob.geometry == geometry
+    assert perspect.mprob.geometry == geometry
+    assert perspect.mprob.material == material
+    assert perspect.mprob.bcs == mechanics_bcs
 
-    # Solve mechanics problem
-    m.solve()
 
-    # Get mechanics solution
-    mu, mp = m.state.split(deepcopy=True)
-    mn = df.Function(m.state_space.sub(0).collapse()) # previous time step
+def test_solve(perspect, pulse_problem):
+    perspect.solve()
+    pu, pp = perspect.mprob.state.split(deepcopy=True)
+    pulse_problem.solve()
+    mu, mp = pulse_problem.state.split(deepcopy=True)
+    assert df.errornorm(pu, mu) < 1e-10
+    assert df.errornorm(pp, mp) < 1e-10
 
-    p.update_mechanics(mu-mn)
-    assert 1==1
 
 
 @pytest.fixture
 def geometry():
-    geometry = perspect.HeartGeometry.from_file(perspect.mesh_paths["simple_ellipsoid"])
+    geometry = HeartGeometry.from_file(mesh_paths["simple_ellipsoid"])
     return geometry
 
 @pytest.fixture
 def material(geometry):
     activation = df.Function(df.FunctionSpace(geometry.mesh, "R", 0))
     activation.assign(df.Constant(0.0))
-    matparams = perspect.HolzapfelOgden.default_parameters()
-    material = perspect.HolzapfelOgden(activation=activation,
+    matparams = HolzapfelOgden.default_parameters()
+    material = HolzapfelOgden(activation=activation,
                                     parameters=matparams,
                                     active_model="active_stress",
                                     eta=0.3,
@@ -38,7 +40,7 @@ def material(geometry):
     return material
 
 @pytest.fixture
-def pulse_bcs(geometry):
+def mechanics_bcs(geometry):
     # LV Pressure
     lvp = df.Constant(0.0)
     lv_marker = geometry.markers['ENDO'][0]
@@ -73,6 +75,11 @@ def pulse_bcs(geometry):
     return bcs
 
 @pytest.fixture
-def perspect_parameters():
-    parameters = {'mechanics': True}
-    return parameters
+def perspect(geometry, material, mechanics_bcs):
+    perspect = Perspect(geometry, material, mechanics_bcs=mechanics_bcs)
+    return perspect
+
+@pytest.fixture
+def pulse_problem(geometry, material, mechanics_bcs):
+    pulse_problem = pulse.MechanicsProblem(geometry, material, mechanics_bcs)
+    return pulse_problem
