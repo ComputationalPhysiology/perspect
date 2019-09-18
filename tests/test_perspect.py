@@ -27,8 +27,8 @@ def geometry():
 def material(geometry):
     activation = df.Function(df.FunctionSpace(geometry.mesh, "R", 0))
     activation.assign(df.Constant(0.0))
-    matparams = pulse.HolzapfelOgden.default_parameters()
-    material = pulse.HolzapfelOgden(activation=activation,
+    matparams = perspect.HolzapfelOgden.default_parameters()
+    material = perspect.HolzapfelOgden(activation=activation,
                                     parameters=matparams,
                                     active_model="active_stress",
                                     eta=0.3,

@@ -5,6 +5,7 @@ from perspect.porousproblem import PorousProblem
 import dolfin as df
 
 from pulse.geometry import Geometry, HeartGeometry
+from pulse.material import *
 from pulse.example_meshes import mesh_paths
 from pulse.utils import get_lv_marker
 
