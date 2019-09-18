@@ -51,7 +51,7 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, bcs=None, parameters=None,
+    def __init__(self, geometry, bcs=None, bcs_parameters=None, parameters=None,
                 solver_parameters=None, **kwargs):
         self.geometry = geometry
         self.mesh = geometry.mesh
@@ -66,7 +66,7 @@ class PorousProblem(object):
         if bcs is None:
             if isinstance(geometry, HeartGeometry):
                 self.bcs_parameters = PorousProblem.default_bcs_parameters()
-            self.bcs = perfusion_boundary_conditions(geometry,
+                self.bcs = perfusion_boundary_conditions(geometry,
                                                         **self.bcs_parameters)
         else:
             self.bcs = bcs
