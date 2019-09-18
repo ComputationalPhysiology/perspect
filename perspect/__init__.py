@@ -9,6 +9,8 @@ from pulse.material import *
 from pulse.example_meshes import mesh_paths
 from pulse.utils import get_lv_marker
 
+import pulse.mechanicsproblem as mechanicsproblem
+
 
 # Solver parameters
 flags = ["-O3", "-ffast-math", "-march=native"]
