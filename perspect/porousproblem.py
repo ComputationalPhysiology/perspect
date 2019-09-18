@@ -184,7 +184,7 @@ class PorousProblem(object):
         old_state = self.state.copy(deepcopy=True)
 
         problem = NonlinearVariationalProblem(
-            self._form, self.state, self._dirichlet_bc, self._jacobian
+            self._form, self.state, J=self._jacobian
         )
 
         solver = NonlinearVariationalSolver(problem)
