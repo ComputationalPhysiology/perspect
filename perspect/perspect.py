@@ -8,7 +8,7 @@ from perspect.porousproblem import PorousProblem
 
 class Perspect(object):
 
-    def __init__(self, geometry, bcs=bcs, parameters=None):
+    def __init__(self, geometry, bcs=None, parameters=None):
         self.pprob = PorousProblem(geometry, parameters=parameters)
         self.mprob = pulse.MechanicsProblem(geometry, material, bcs=bcs)
 
