@@ -5,21 +5,29 @@ import pytest
 
 def test_porousproblem(geometry, material):
     parameters = {'K': 1}
-    p = PorousProblem(geometry, material, parameters=parameters)
+    solver_parameters = {'newton_solver': {'maximum_iterations': 100}}
+    p = PorousProblem(geometry, material, parameters=parameters,
+                        solver_parameters=solver_parameters)
 
     assert geometry == p.geometry
     assert geometry.mesh == p.mesh
 
-    for key in parameters.keys():
-        assert key in p.parameters
-        assert p.parameters[key] == parameters[key]
+    assert 'K' in p.parameters
+    assert p.parameters['K'] == parameters['K']
+
+    assert p.solver_parameters['newton_solver']['maximum_iterations'] ==\
+                    solver_parameters['newton_solver']['maximum_iterations']
 
 
-def test_init_spaces(porous_problem):
+def test_init_spaces(porous_problem, porous_problem2):
     p = porous_problem
     assert p.state.function_space() == p.state_space
     assert p.state_previous.function_space() == p.state_space
     assert p.state_test.function_space() == p.state_space
+    p2 = porous_problem2
+    assert p2.state.function_space() == p2.state_space
+    assert p2.state_previous.function_space() == p2.state_space
+    assert p2.state_test.function_space() == p2.state_space
 
 
 def test_init_porous_form(porous_problem):
@@ -60,6 +68,12 @@ def parameters():
 
 @pytest.fixture
 def porous_problem(geometry, material, parameters):
+    porous_problem = PorousProblem(geometry, material, parameters=parameters)
+    return porous_problem
+
+@pytest.fixture
+def porous_problem2(geometry, material, parameters):
+    parameters.update({'N': 2})
     porous_problem = PorousProblem(geometry, material, parameters=parameters)
     return porous_problem
 

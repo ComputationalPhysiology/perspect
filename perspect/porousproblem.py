@@ -3,7 +3,7 @@ from collections import namedtuple
 import dolfin as df
 from dolfin import (
         Constant, FiniteElement, FunctionSpace, Function, TestFunction,
-        TrialFunction, Identity, VectorElement,
+        TrialFunction, Identity, VectorElement, MixedElement,
         NonlinearVariationalProblem, NonlinearVariationalSolver
 )
 
@@ -72,7 +72,7 @@ class PorousProblem(object):
         if N == 1:
             elem = P2
         else:
-            elem = MixedElement([P1 for i in range(N)])
+            elem = MixedElement([P2 for i in range(N)])
         v_elem = VectorElement('P', self.mesh.ufl_cell(), 1)
 
         mesh = self.geometry.mesh
@@ -89,6 +89,15 @@ class PorousProblem(object):
         m = self.state
         m_n = self.state_previous
         v = self.state_test
+        du = self.displacement
+        p = self.pressure
+
+        # Multi-compartment functionality comes later
+        if self.parameters['N'] > 1:
+            m = self.state[0]
+            m_n = self.state_previous[0]
+            v = self.state_test[0]
+            p = self.pressure[0]
 
         # Get parameters
         qi = self.parameters['qi']
@@ -108,7 +117,7 @@ class PorousProblem(object):
         dx = self.geometry.dx
         d = self.state.geometric_dimension()
         I = Identity(d)
-        F = df.variable(kinematics.DeformationGradient(self.displacement))
+        F = df.variable(kinematics.DeformationGradient(du))
         J = kinematics.Jacobian(F)
 
         # porous dynamics
@@ -116,12 +125,13 @@ class PorousProblem(object):
             A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
         else:
             A = rho*K
+
         self._form = k*(m - m_n)*v*dx +\
-                            df.inner(-A*df.grad(self.pressure), df.grad(v))*dx
+                            df.inner(-A*df.grad(p), df.grad(v))*dx
 
         # add mechanics
         if self.parameters['mechanics']:
-            self._form += df.dot(df.grad(M), k*self.displacement)*v*dx
+            self._form += df.dot(df.grad(M), k*du)*v*dx
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
