@@ -15,35 +15,6 @@ import pulse.mechanicsproblem
 
 logger = pulse.mechanicsproblem.logger
 
-BoundaryConditions = namedtuple(
-    "BoundaryConditions", ["neumann"]
-)
-set_default_none(BoundaryConditions, ())
-
-NeumannBC = namedtuple("NeumannBC", ["inflow", "marker", "name"])
-
-
-def perfusion_boundary_conditions(geometry, inflow=0.0):
-    # Neumann BC
-    lv_marker = get_lv_marker(geometry)
-    lv_inflow = NeumannBC(
-        inflow=df.Constant(0.0, name="lv_inflow"), marker=lv_marker, name="lv"
-    )
-    neumann_bc = [lv_inflow]
-
-    if geometry.is_biv:
-        rv_pressure = NeumannBC(
-            inflow=Constant(0.0, name="rv_inflow"),
-            marker=geometry.markers["ENDO_RV"][0],
-            name="rv",
-        )
-
-        neumann_bc += [rv_inflow]
-
-    boundary_conditions = BoundaryConditions(neumann=neumann_bc)
-
-    return boundary_conditions
-
 
 class PorousProblem(object):
     """
@@ -52,7 +23,7 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, material, bcs=None, bcs_parameters=None, parameters=None,
+    def __init__(self, geometry, material, parameters=None,
                 solver_parameters=None, **kwargs):
         self.geometry = geometry
         self.material = material
@@ -63,15 +34,6 @@ class PorousProblem(object):
         self.parameters = PorousProblem.default_parameters()
         if parameters is not None:
             self.parameters.update(parameters)
-
-        # Set boundary conditions
-        if bcs is None:
-            if isinstance(geometry, HeartGeometry):
-                self.bcs_parameters = PorousProblem.default_bcs_parameters()
-                self.bcs = perfusion_boundary_conditions(geometry,
-                                                        **self.bcs_parameters)
-        else:
-            self.bcs = bcs
 
         # Create function spaces
         self._init_spaces()
@@ -97,11 +59,6 @@ class PorousProblem(object):
             'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5,
             'mechanics': False
         }
-
-
-    @staticmethod
-    def default_bcs_parameters():
-        return dict(inflow=0.0)
 
 
     @staticmethod

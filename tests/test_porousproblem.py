@@ -5,8 +5,7 @@ import pytest
 
 def test_porousproblem(geometry, material):
     parameters = {'K': 1}
-    bcs = None
-    p = PorousProblem(geometry, material, bcs=bcs, parameters=parameters)
+    p = PorousProblem(geometry, material, parameters=parameters)
 
     assert geometry == p.geometry
     assert geometry.mesh == p.mesh
@@ -14,13 +13,6 @@ def test_porousproblem(geometry, material):
     for key in parameters.keys():
         assert key in p.parameters
         assert p.parameters[key] == parameters[key]
-
-    if bcs is None:
-        from perspect.porousproblem import perfusion_boundary_conditions
-        bcs = perfusion_boundary_conditions(geometry)
-    for nbcs1, nbcs2 in zip(bcs.neumann, p.bcs.neumann):
-        assert float(nbcs1.inflow) == float(nbcs2.inflow)
-        assert nbcs1.marker == nbcs2.marker
 
 
 def test_init_spaces(porous_problem):
@@ -62,22 +54,17 @@ def material(geometry):
     return material
 
 @pytest.fixture
-def bcs():
-    bcs = None
-    return bcs
-
-@pytest.fixture
 def parameters():
     parameters = {'K': 1}
     return parameters
 
 @pytest.fixture
-def porous_problem(geometry, material, bcs, parameters):
-    porous_problem = PorousProblem(geometry, material, bcs=bcs, parameters=parameters)
+def porous_problem(geometry, material, parameters):
+    porous_problem = PorousProblem(geometry, material, parameters=parameters)
     return porous_problem
 
 @pytest.fixture
-def mechanics_problem(geometry, material, bcs):
-    mechanics_problem = pulse.MechanicsProblem(geometry, material, bcs=bcs,
+def mechanics_problem(geometry, material):
+    mechanics_problem = pulse.MechanicsProblem(geometry, material, bcs=None,
                                             bcs_parameters={"": ""})
     return mechanics_problem
