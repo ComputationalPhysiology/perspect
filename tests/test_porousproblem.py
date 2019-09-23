@@ -3,10 +3,10 @@ import pulse
 import dolfin as df
 import pytest
 
-def test_porousproblem(geometry):
+def test_porousproblem(geometry, material):
     parameters = {'K': 1}
     bcs = None
-    p = PorousProblem(geometry, bcs=bcs, parameters=parameters)
+    p = PorousProblem(geometry, material, bcs=bcs, parameters=parameters)
 
     assert geometry == p.geometry
     assert geometry.mesh == p.mesh
@@ -72,8 +72,8 @@ def parameters():
     return parameters
 
 @pytest.fixture
-def porous_problem(geometry, bcs, parameters):
-    porous_problem = PorousProblem(geometry, bcs=bcs, parameters=parameters)
+def porous_problem(geometry, material, bcs, parameters):
+    porous_problem = PorousProblem(geometry, material, bcs=bcs, parameters=parameters)
     return porous_problem
 
 @pytest.fixture

@@ -8,6 +8,7 @@ from dolfin import (
 )
 
 from pulse import HeartGeometry
+from pulse import kinematics
 from pulse.utils import get_lv_marker, set_default_none
 import pulse.mechanicsproblem
 
@@ -51,9 +52,10 @@ class PorousProblem(object):
     - outflow (Neumann BC in fluid mass increase)
     """
 
-    def __init__(self, geometry, bcs=None, bcs_parameters=None, parameters=None,
+    def __init__(self, geometry, material, bcs=None, bcs_parameters=None, parameters=None,
                 solver_parameters=None, **kwargs):
         self.geometry = geometry
+        self.material = material
         self.mesh = geometry.mesh
         self.markers = get_lv_marker(self.geometry)
 
@@ -123,13 +125,13 @@ class PorousProblem(object):
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
         self.displacement = Function(self.vector_space)
+        self.pressure = Function(self.state_space)
 
 
     def _init_porous_form(self):
         m = self.state
         m_n = self.state_previous
         v = self.state_test
-        p = Function(self.state_space)
 
         # Get parameters
         qi = self.parameters['qi']
@@ -145,17 +147,20 @@ class PorousProblem(object):
         M = theta*m + (1-theta)*m_n
 
         # Mechanics
+        from ufl import grad as ufl_grad
         dx = self.geometry.dx
         d = self.state.geometric_dimension()
-        J = Constant(1)
-        F = Identity(d)
+        I = Identity(d)
+        F = df.variable(kinematics.DeformationGradient(self.displacement))
+        J = kinematics.Jacobian(F)
 
         # porous dynamics
         if self.parameters['mechanics']:
             A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
         else:
             A = rho*K
-        self._form = k*(m - m_n)*v*dx + df.inner(-A*df.grad(p), df.grad(v))*dx
+        self._form = k*(m - m_n)*v*dx +\
+                            df.inner(-A*df.grad(self.pressure), df.grad(v))*dx
 
         # add mechanics
         if self.parameters['mechanics']:
@@ -167,6 +172,10 @@ class PorousProblem(object):
 
     def update_mechanics(self, displacement):
         self.displacement = displacement
+        F = df.variable(kinematics.DeformationGradient(self.displacement))
+        self.pressure = df.project(df.inner(df.diff(
+                    self.material.strain_energy(F), F), F.T), self.state_space)
+        self._init_porous_form()
 
 
     def solve(self):

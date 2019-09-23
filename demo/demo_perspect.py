@@ -4,6 +4,7 @@ import pulse
 import perspect
 import sys
 
+comm = df.mpi_comm_world()
 df.set_log_level(16)
 
 if len(sys.argv) > 1:
@@ -62,7 +63,7 @@ bcs = perspect.mechanicsproblem.BoundaryConditions(
     dirichlet=dirichlet_bc, neumann=neumann_bc, robin=robin_bc
 )
 
-parameters = {'qi': 1e-3}
+parameters = {'mechanics': True, 'qi': 1e-3}
 
 p = perspect.Perspect(geometry, material, mechanics_bcs=bcs, parameters=parameters)
 
@@ -73,9 +74,13 @@ u, x = p.mprob.state.split(deepcopy=True)
 m = p.pprob.state
 
 # Move mesh accoring to displacement
-u_int = df.interpolate(u, df.VectorFunctionSpace(geometry.mesh, "CG", 1))
-mesh = df.Mesh(geometry.mesh)
-df.ALE.move(mesh, u_int)
+# u_int = df.interpolate(u, df.VectorFunctionSpace(geometry.mesh, "CG", 1))
+# mesh = df.Mesh(geometry.mesh)
+# df.ALE.move(mesh, u_int)
 
-print(df.assemble(df.norm(u)*df.dx(domain=mesh)))
-print(df.assemble(m*df.dx(domain=mesh)))
+ufile = df.XDMFFile(comm, "u.xdmf")
+mfile = df.XDMFFile(comm, "m.xdmf")
+ufile.write(u, 0)
+mfile.write(m, 0)
+ufile.close()
+mfile.close()
