@@ -106,7 +106,7 @@ class PorousProblem(object):
         beta = self.parameters['beta']
         K = self.parameters['K']
         dt = self.parameters['dt']
-        k = 1/dt
+        k = df.Constant(1/dt)
         theta = self.parameters['theta']
 
         # Crank-Nicolson time scheme
