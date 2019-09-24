@@ -17,8 +17,9 @@ class Perspect(object):
                                             bcs_parameters={"": ""})
 
 
-    def update_mechanics(self, displacement):
-        self.pprob.update_mechanics(displacement)
+    def update_mechanics(self):
+        mu, mp = self.mprob.state.split()
+        self.pprob.update_mechanics(mu)
 
 
     def solve(self):
