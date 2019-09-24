@@ -177,8 +177,6 @@ class PorousProblem(object):
             logger.debug("Failed")
             logger.debug("Reintialize old state and raise exception")
 
-            self.reinit(old_state)
-
             raise SolverDidNotConverge(ex)
         else:
             logger.debug("Solved")
