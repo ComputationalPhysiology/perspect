@@ -82,7 +82,7 @@ class PorousProblem(object):
         self.state = Function(self.state_space)
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
-        self.displacement = Function(self.vector_space)
+        self.mech_velocity = Function(self.vector_space)
         self.pressure = Function(self.state_space)
 
 
@@ -90,7 +90,7 @@ class PorousProblem(object):
         m = self.state
         m_n = self.state_previous
         v = self.state_test
-        du = self.displacement
+        du = self.mech_velocity
         p = self.pressure
 
         # Multi-compartment functionality comes later
@@ -131,16 +131,16 @@ class PorousProblem(object):
                             df.inner(-A*df.grad(p), df.grad(v))*dx
 
         # add mechanics
-        # if self.parameters['mechanics']:
-        #     self._form += df.dot(df.grad(M), k*du)*v*dx
+        if self.parameters['mechanics']:
+            self._form += df.dot(df.grad(M), k*du)*v*dx
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
 
 
-    def update_mechanics(self, displacement):
-        self.displacement = displacement
-        F = df.variable(kinematics.DeformationGradient(self.displacement))
+    def update_mechanics(self, displacement, previous_displacement):
+        self.mech_velocity = displacement - previous_displacement
+        F = df.variable(kinematics.DeformationGradient(displacement))
         self.pressure = df.project(df.inner(df.diff(
                     self.material.strain_energy(F), F), F.T), self.state_space)
         self._init_porous_form()

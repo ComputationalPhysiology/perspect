@@ -21,23 +21,27 @@ class Perspect(object):
 
 
     def update_mechanics(self):
-        mu, mp = self.mprob.state.split()
-        self.pprob.update_mechanics(mu)
+        displacement = self.mechanics
+        previous_displacement = self.previous_mechanics
+        self.pprob.update_mechanics(displacement, previous_displacement)
 
 
     def solve(self):
         self.solve_mechanics()
-        mu, mp = self.mprob.state.split(deepcopy=True)
         self.update_mechanics()
         self.solve_porous()
 
 
     def iterate(self, control, target, **kwargs):
+        self.previous_mechanics = self.mprob.state.split(deepcopy=True)[0]
         pulse.iterate.iterate(self.mprob, control, target, **kwargs)
+        self.mechanics = self.mprob.state.split(deepcopy=True)[0]
 
 
     def solve_mechanics(self):
+        self.previous_mechanics = self.mprob.state.split(deepcopy=True)[0]
         self.mprob.solve()
+        self.mechanics = self.mprob.state.split(deepcopy=True)[0]
 
 
     def solve_porous(self):
