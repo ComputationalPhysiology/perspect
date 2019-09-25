@@ -16,6 +16,9 @@ class Perspect(object):
         self.mprob = pulse.MechanicsProblem(geometry, material, bcs=mechanics_bcs,
                                             bcs_parameters={"": ""})
 
+        # set pulse log log level
+        pulse.parameters.update({'log_level': df.get_log_level()})
+
 
     def update_mechanics(self):
         mu, mp = self.mprob.state.split()
