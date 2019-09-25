@@ -57,8 +57,8 @@ class PorousProblem(object):
 
         return {
             'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
-            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'steps': 10, 'theta': 0.5,
-            'mechanics': False
+            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'steps': 10,
+            'theta': 0.5, 'mechanics': False
         }
 
 
@@ -106,7 +106,7 @@ class PorousProblem(object):
         rho = self.parameters['rho']
         beta = self.parameters['beta']
         K = self.parameters['K']
-        dt = self.parameters['dt']
+        dt = self.parameters['dt']/self.parameters['steps']
         k = df.Constant(1/dt)
         theta = self.parameters['theta']
 
@@ -131,8 +131,8 @@ class PorousProblem(object):
                             df.inner(-A*df.grad(p), df.grad(v))*dx
 
         # add mechanics
-        if self.parameters['mechanics']:
-            self._form += df.dot(df.grad(M), k*du)*v*dx
+        # if self.parameters['mechanics']:
+        #     self._form += df.dot(df.grad(M), k*du)*v*dx
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
@@ -169,19 +169,23 @@ class PorousProblem(object):
         solver = NonlinearVariationalSolver(problem)
         solver.parameters.update(self.solver_parameters)
 
-        try:
-            logger.debug("Trying...")
-            nliter, nlconv = solver.solve()
-            if not nlconv:
+        for i in range(self.parameters['steps']):
+            try:
+                logger.debug("Trying...")
+                nliter, nlconv = solver.solve()
+                if not nlconv:
+                    logger.debug("Failed")
+                    raise pulse.mechanicsproblem.SolverDidNotConverge("Solver did not converge...")
+            except RuntimeError as ex:
                 logger.debug("Failed")
-                raise SolverDidNotConverge("Solver did not converge...")
+                raise pulse.mechanicsproblem.SolverDidNotConverge("Solver did not converge...")
 
-        else:
-            logger.debug("Solved")
+            else:
+                logger.debug("Solved")
 
-            # Update old state
-            self.state_previous.assign(self.state)
+                # Update old state
+                self.state_previous.assign(self.state)
 
-        self.newton_steps = nliter
+            self.newton_steps = nliter
 
         return nliter, nlconv
