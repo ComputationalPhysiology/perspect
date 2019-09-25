@@ -40,6 +40,7 @@ class PorousProblem(object):
         self._init_porous_form()
 
         # Set up solver
+        self.newton_steps = 5000
         self.solver_parameters = PorousProblem.default_solver_parameters()
         if solver_parameters is not None:
             self.solver_parameters.update(solver_parameters)
@@ -56,7 +57,7 @@ class PorousProblem(object):
 
         return {
             'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
-            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'theta': 0.5,
+            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'steps': 10, 'theta': 0.5,
             'mechanics': False
         }
 
@@ -151,9 +152,11 @@ class PorousProblem(object):
 
         """
 
-        self._jacobian = df.derivative(
-            self._form, self.state, TrialFunction(self.state_space)
-        )
+        # Only recalculate Jacobian if Newton solver takes too many iterations
+        if self.newton_steps > 10:
+            self._jacobian = df.derivative(
+                self._form, self.state, TrialFunction(self.state_space)
+            )
 
         logger.debug("Solving porous problem")
         # Get old state in case of non-convergence
@@ -173,15 +176,12 @@ class PorousProblem(object):
                 logger.debug("Failed")
                 raise SolverDidNotConverge("Solver did not converge...")
 
-        except RuntimeError as ex:
-            logger.debug("Failed")
-            logger.debug("Reintialize old state and raise exception")
-
-            raise SolverDidNotConverge(ex)
         else:
             logger.debug("Solved")
 
             # Update old state
             self.state_previous.assign(self.state)
+
+        self.newton_steps = nliter
 
         return nliter, nlconv
