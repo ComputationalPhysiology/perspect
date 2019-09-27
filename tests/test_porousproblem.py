@@ -37,7 +37,7 @@ def test_init_porous_form(porous_problem):
 
 def test_update_mechanics(porous_problem, mechanics_problem):
     mechanics_problem.solve()
-    mu, mp = mechanics_problem.state.split(deepcopy=True)
+    mu = mechanics_problem.state.split(deepcopy=True)
     porous_problem.update_mechanics(mu, mu)
     assert(df.assemble(df.div(porous_problem.mech_velocity)*df.dx) < 1e-10)
 

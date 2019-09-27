@@ -56,8 +56,8 @@ class PorousProblem(object):
         """
 
         return {
-            'N': 1, 'rho': 1000, 'K': 1e-3, 'phi': 0.021, 'beta': 0.02,
-            'qi': 0.0, 'qo': 0.0, 'tf': 1.0, 'dt': 1e-2, 'steps': 10,
+            'N': 1, 'rho': 1.06, 'K': 1, 'phi': 0.021, 'beta': 0.02e4,
+            'qi': 0.0, 'qo': 0, 'tf': 1.0, 'dt': 1e-2, 'steps': 10,
             'theta': 0.5, 'mechanics': False
         }
 
@@ -76,7 +76,7 @@ class PorousProblem(object):
             elem = MixedElement([P2 for i in range(N)])
         v_elem = VectorElement('P', self.mesh.ufl_cell(), 1)
 
-        mesh = self.geometry.mesh
+        mesh = self.mesh
         self.state_space = FunctionSpace(mesh, elem)
         self.vector_space = FunctionSpace(mesh, v_elem)
         self.state = Function(self.state_space)
@@ -101,17 +101,17 @@ class PorousProblem(object):
             p = self.pressure[0]
 
         # Get parameters
-        qi = self.parameters['qi']
-        qo = self.parameters['qo']
-        rho = self.parameters['rho']
-        beta = self.parameters['beta']
-        K = self.parameters['K']
+        qi = Constant(self.parameters['qi']/self.mesh.num_cells())
+        qo = Constant(self.parameters['qo']/self.mesh.num_cells())
+        rho = Constant(self.parameters['rho'])
+        beta = Constant(self.parameters['beta'])
+        K = Constant(self.parameters['K'])
         dt = self.parameters['dt']/self.parameters['steps']
-        k = df.Constant(1/dt)
+        k = Constant(1/dt)
         theta = self.parameters['theta']
 
         # Crank-Nicolson time scheme
-        M = theta*m + (1-theta)*m_n
+        M = Constant(theta)*m + Constant(1-theta)*m_n
 
         # Mechanics
         from ufl import grad as ufl_grad
@@ -138,12 +138,16 @@ class PorousProblem(object):
         self._form += -rho*qi*v*dx + rho*qo*v*dx
 
 
-    def update_mechanics(self, displacement, previous_displacement):
-        self.mech_velocity = displacement - previous_displacement
+    def update_mechanics(self, mechanics, previous_mechanics):
+        displacement = mechanics[0]
+        previous_displacement = previous_mechanics[0]
+        self.mech_velocity.assign(
+            df.project(displacement - previous_displacement, self.vector_space))
         F = df.variable(kinematics.DeformationGradient(displacement))
-        self.pressure = df.project(df.inner(df.diff(
-                    self.material.strain_energy(F), F), F.T), self.state_space)
-        self._init_porous_form()
+        mech_pressure = df.project(mechanics[1], self.state_space)
+        self.pressure.assign(df.project(df.inner(df.diff(
+                    self.material.strain_energy(F), F), F.T) - mech_pressure,
+                                                            self.state_space))
 
 
     def solve(self):
@@ -175,10 +179,14 @@ class PorousProblem(object):
                 nliter, nlconv = solver.solve()
                 if not nlconv:
                     logger.debug("Failed")
-                    raise pulse.mechanicsproblem.SolverDidNotConverge("Solver did not converge...")
+                    logger.debug("Solver did not converge...")
+                    break
             except RuntimeError as ex:
+                nliter = 0
+                nlconv = False
                 logger.debug("Failed")
-                raise pulse.mechanicsproblem.SolverDidNotConverge("Solver did not converge...")
+                logger.debug("Solver did not converge...")
+                break
 
             else:
                 logger.debug("Solved")

@@ -76,7 +76,8 @@ def mechanics_bcs(geometry):
 
 @pytest.fixture
 def perspect(geometry, material, mechanics_bcs):
-    perspect = Perspect(geometry, material, mechanics_bcs=mechanics_bcs)
+    perspect = Perspect(geometry, material, mechanics_bcs=mechanics_bcs,
+                                                parameters={'mechanics': True})
     return perspect
 
 @pytest.fixture
