@@ -101,12 +101,12 @@ class PorousProblem(object):
             p = self.pressure[0]
 
         # Get parameters
-        qi = Constant(self.parameters['qi']/self.mesh.num_cells())
-        qo = Constant(self.parameters['qo']/self.mesh.num_cells())
         rho = Constant(self.parameters['rho'])
         beta = Constant(self.parameters['beta'])
         K = Constant(self.parameters['K'])
         dt = self.parameters['dt']/self.parameters['steps']
+        qi = Constant(self.parameters['qi']/self.mesh.num_cells()*dt)
+        qo = Constant(self.parameters['qo']/self.mesh.num_cells()*dt)
         k = Constant(1/dt)
         theta = self.parameters['theta']
 
