@@ -14,8 +14,7 @@ class Perspect(object):
         self.material = material
         self.pprob = PorousProblem(geometry, material, bcs=porous_bcs,
                                                         parameters=parameters)
-        if self.pprob.parameters['mechanics']:
-            self.mprob = pulse.MechanicsProblem(geometry, material,
+        self.mprob = pulse.MechanicsProblem(geometry, material,
                                     bcs=mechanics_bcs, bcs_parameters={"": ""})
 
         # set pulse log level
