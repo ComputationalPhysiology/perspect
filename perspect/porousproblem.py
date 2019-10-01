@@ -2,9 +2,9 @@ from collections import namedtuple
 
 import dolfin as df
 from dolfin import (
-        Constant, Expression, FiniteElement, FunctionSpace, Function,
-        TestFunction, TrialFunction, Identity, VectorElement, MixedElement,
-        NonlinearVariationalProblem, NonlinearVariationalSolver
+        Constant, Expression, FiniteElement, FunctionSpace, DirichletBC,
+        Function, TestFunction, TrialFunction, Identity, VectorElement,
+        MixedElement, NonlinearVariationalProblem, NonlinearVariationalSolver
 )
 
 from pulse import HeartGeometry
@@ -103,10 +103,10 @@ class PorousProblem(object):
         # Get parameters
         rho = Constant(self.parameters['rho'])
         beta = Constant(self.parameters['beta'])
-        K = Constant(self.parameters['K'])
+        K = Constant(self.parameters['K']) * self.permeability_tensor()
         dt = self.parameters['dt']/self.parameters['steps']
         qi = self.inflow_rate(self.parameters['qi'])
-        qo = self.inflow_rate(self.parameters['qi'])
+        qo = self.inflow_rate(self.parameters['qo'])
         k = Constant(1/dt)
         theta = self.parameters['theta']
 
@@ -146,6 +146,30 @@ class PorousProblem(object):
                 rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
         except TypeError:
             logger.debug("Outflow rate has to be either string or number. Type supplied: {}".format(type(self.parameters['qo'])))
+        return rate
+
+
+    def permeability_tensor(self):
+        fibers = self.geometry.f0
+        d = self.geometry.geo_dim
+        I = Identity(d)
+        dx = self.geometry.dx
+
+        # Calculate endo to epi permeability gradient
+        FS = FunctionSpace(self.geometry.mesh, 'P', 2)
+        w = TrialFunction(FS)
+        v = TestFunction(FS)
+        endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                                self.geometry.markers['ENDO'][0])
+        epi = DirichletBC(FS, Constant(0), self.geometry.ffun,
+                                                self.geometry.markers['EPI'][0])
+        a = df.inner(df.grad(w), df.grad(v))*dx
+        L = Constant(0)*v*dx
+        w = Function(FS)
+        df.solve(a == L, w, [endo, epi])
+
+        permeability = w*I
+        return permeability
 
 
     def update_mechanics(self, mechanics, previous_mechanics):
