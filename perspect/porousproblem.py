@@ -2,8 +2,8 @@ from collections import namedtuple
 
 import dolfin as df
 from dolfin import (
-        Constant, FiniteElement, FunctionSpace, Function, TestFunction,
-        TrialFunction, Identity, VectorElement, MixedElement,
+        Constant, Expression, FiniteElement, FunctionSpace, Function,
+        TestFunction, TrialFunction, Identity, VectorElement, MixedElement,
         NonlinearVariationalProblem, NonlinearVariationalSolver
 )
 
@@ -105,8 +105,8 @@ class PorousProblem(object):
         beta = Constant(self.parameters['beta'])
         K = Constant(self.parameters['K'])
         dt = self.parameters['dt']/self.parameters['steps']
-        qi = Constant(self.parameters['qi']/self.mesh.num_cells()*dt)
-        qo = Constant(self.parameters['qo']/self.mesh.num_cells()*dt)
+        qi = self.inflow_rate(self.parameters['qi'])
+        qo = self.inflow_rate(self.parameters['qi'])
         k = Constant(1/dt)
         theta = self.parameters['theta']
 
@@ -136,6 +136,16 @@ class PorousProblem(object):
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
+
+
+    def inflow_rate(self, rate):
+        try:
+            if isinstance(rate, (int, float)):
+                rate = Constant(rate/self.mesh.num_cells())
+            else:
+                rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
+        except TypeError:
+            logger.debug("Outflow rate has to be either string or number. Type supplied: {}".format(type(self.parameters['qo'])))
 
 
     def update_mechanics(self, mechanics, previous_mechanics):
