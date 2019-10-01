@@ -9,13 +9,16 @@ from perspect.porousproblem import PorousProblem
 class Perspect(object):
 
     def __init__(self, geometry, material, mechanics_bcs=None, porous_bcs=None,
-                    parameters=None):
+                    parameters=None, solver_parameters=None):
         self.geometry = geometry
         self.material = material
         self.pprob = PorousProblem(geometry, material, bcs=porous_bcs,
-                                                        parameters=parameters)
+                                    parameters=parameters,
+                                    solver_parameters=solver_parameters)
         self.mprob = pulse.MechanicsProblem(geometry, material,
-                                    bcs=mechanics_bcs, bcs_parameters={"": ""})
+                                            bcs=mechanics_bcs,
+                                            bcs_parameters={"": ""},
+                                            solver_parameters=solver_parameters)
 
         # set pulse log level
         pulse.parameters.update({'log_level': df.get_log_level()})
