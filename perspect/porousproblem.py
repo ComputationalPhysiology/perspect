@@ -39,6 +39,7 @@ class PorousProblem(object):
         # Create function spaces
         self._init_spaces()
         self._init_porous_form()
+        self.t = 0.0
 
         # Set up solver
         self.newton_steps = 5000
@@ -83,20 +84,17 @@ class PorousProblem(object):
         self.state = Function(self.state_space)
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
+        self.displacement = Function(self.vector_space)
         self.mech_velocity = Function(self.vector_space)
         self.pressure = Function(self.state_space)
         self.darcy_flow = Function(self.vector_space)
-        self.deformation_gradient = df.variable(
-                            kinematics.DeformationGradient(self.mech_velocity))
-        self.jacobian = kinematics.Jacobian(self.deformation_gradient)
-
-
 
 
     def _init_porous_form(self):
         m = self.state
         m_n = self.state_previous
         v = self.state_test
+        u = self.displacement
         du = self.mech_velocity
         p = self.pressure
 
@@ -110,14 +108,12 @@ class PorousProblem(object):
         # Get parameters
         rho = Constant(self.parameters['rho'])
         beta = Constant(self.parameters['beta'])
-        K = Constant(self.parameters['K']) * self.permeability_tensor()
+        K = Constant(self.parameters['K'])# * self.permeability_tensor()
         dt = self.parameters['dt']/self.parameters['steps']
         qi = self.inflow_rate(self.parameters['qi'])
         qo = self.inflow_rate(self.parameters['qo'])
         k = Constant(1/dt)
         theta = self.parameters['theta']
-
-        self.test_pressure()
 
         # Crank-Nicolson time scheme
         M = Constant(theta)*m + Constant(1-theta)*m_n
@@ -127,35 +123,32 @@ class PorousProblem(object):
         dx = self.geometry.dx
         d = self.state.geometric_dimension()
         I = Identity(d)
-        F = self.deformation_gradient
-        J = self.jacobian
+        F = df.variable(kinematics.DeformationGradient(u))
+        J = kinematics.Jacobian(F)
 
 
         # porous dynamics
         if self.parameters['mechanics']:
-            A = df.variable(rho * J * df.inv(F) * K * df.inv(F.T))
+            A = rho * J * df.inv(F) * K * df.inv(F.T)
         else:
-            A = df.variable(rho*K)
+            A = rho*K
 
         self._form = k*(m - m_n)*v*dx +\
                             df.inner(-A*df.grad(p), df.grad(v))*dx
 
         # add mechanics
         if self.parameters['mechanics']:
-            self._form += df.dot(df.grad(M), k*du)*v*dx
+            self._form -= df.dot(df.grad(M), du)*v*dx
 
         # Add inflow/outflow terms
         self._form += -rho*qi*v*dx + rho*qo*v*dx
 
 
     def inflow_rate(self, rate):
-        try:
-            if isinstance(rate, (int, float)):
-                rate = Constant(rate/self.mesh.num_cells())
-            else:
-                rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
-        except TypeError:
-            logger.debug("Outflow rate has to be either string or number. Type supplied: {}".format(type(self.parameters['qo'])))
+        if isinstance(rate, (int, float)):
+            rate = Constant(rate/self.mesh.num_cells())
+        elif isinstance(rate, str):
+            rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
         return rate
 
 
@@ -191,19 +184,10 @@ class PorousProblem(object):
         return (1/factor) * permeability
 
 
-    def update_mechanics(self, mechanics, previous_mechanics):
-        displacement = mechanics[0]
-        previous_displacement = previous_mechanics[0]
-        self.mech_velocity.assign(
-            df.project(displacement - previous_displacement, self.vector_space))
-        F = df.variable(kinematics.DeformationGradient(displacement))
-        mech_pressure = df.project(mechanics[1], self.state_space)
-        self.pressure.assign(df.project(df.inner(df.diff(
-                    self.material.strain_energy(F), F), F.T) - mech_pressure,
-                                                            self.state_space))
-        self.deformation_gradient = df.variable(
-                            kinematics.DeformationGradient(mechanics[0]))
-        self.jacobian = kinematics.Jacobian(self.deformation_gradient)
+    def update_mechanics(self, pressure, displacement, mech_velocity):
+        self.pressure.assign(pressure)
+        self.displacement.assign(displacement)
+        self.mech_velocity.assign(mech_velocity)
 
 
     def test_pressure(self):
@@ -227,8 +211,8 @@ class PorousProblem(object):
     def calculate_darcy_flow(self):
         rho = Constant(self.parameters['rho'])
         K = Constant(self.parameters['K']) * self.permeability_tensor()
-        F = self.deformation_gradient
-        J = self.jacobian
+        F = df.variable(kinematics.DeformationGradient(self.displacement))
+        J = kinematics.Jacobian(F)
         dx = self.geometry.dx
 
         # Calculate endo to epi permeability gradient
@@ -267,6 +251,14 @@ class PorousProblem(object):
 
         for i in range(self.parameters['steps']):
             try:
+                self.parameters['qi'].t +=\
+                                self.parameters['dt']/self.parameters['steps']
+            except AttributeError:
+                # If the Expression for qi does not have a time parameter
+                # do nothing
+                pass
+
+            try:
                 logger.debug("Trying...")
                 nliter, nlconv = solver.solve()
                 if not nlconv:
@@ -284,10 +276,10 @@ class PorousProblem(object):
                 logger.debug("Solved")
 
                 # Update old state
-                self.state_previous.assign(self.state)
 
             self.newton_steps = nliter
 
+        self.state_previous.assign(self.state)
         self.calculate_darcy_flow()
 
         return nliter, nlconv

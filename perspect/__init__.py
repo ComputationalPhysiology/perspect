@@ -1,6 +1,7 @@
 
 from perspect.perspect import Perspect
 from perspect.porousproblem import PorousProblem
+from perspect import utils
 
 import dolfin as df
 

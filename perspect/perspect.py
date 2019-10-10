@@ -20,12 +20,36 @@ class Perspect(object):
                                             bcs_parameters={"": ""},
                                             solver_parameters=solver_parameters)
 
+        self.pprob_state = self.pprob.state
+        self.mprob_state = self.mprob.state
+        self.mprob_state_prev = self.mprob.state
+
         # set pulse log level
         pulse.parameters.update({'log_level': df.get_log_level()})
 
 
     def update_mechanics(self):
-        self.pprob.update_mechanics(self.mechanics, self.previous_mechanics)
+        # calculate displacement velocity
+        displacement, solid_pressure = self.mprob_state.split(deepcopy=True)
+        pressure = self.calculate_pressure()
+        mech_velocity = self.calculate_mech_velocity()
+        self.pprob.update_mechanics(pressure, displacement, mech_velocity)
+        self.mprob_state_prev.assign(self.mprob.state)
+
+
+    def calculate_pressure(self):
+        u, p = self.mprob_state.split()
+        F = df.variable(pulse.kinematics.DeformationGradient(u))
+        return df.project(df.inner(
+                        df.diff(self.material.strain_energy(F), F), F.T) - p,
+                    self.pprob.state_space)
+
+
+    def calculate_mech_velocity(self):
+        u, p = self.mprob_state.split()
+        u_prev, p_prev = self.mprob_state_prev.split()
+        dt = self.pprob.parameters['dt']/self.pprob.parameters['steps']
+        return df.project((u-u_prev)/dt, self.pprob.vector_space)
 
 
     def solve(self):
