@@ -6,6 +6,13 @@ import pulse
 from perspect.porousproblem import PorousProblem
 
 
+def get_mechanics_geometry(geometry):
+    return pulse.geometry.HeartGeometry(geometry.mesh, markers=geometry.markers,
+                                    marker_functions=geometry.markerfunctions,
+                                    microstructure=geometry.microstructure,
+                                    crl_basis=geometry.crl_basis)
+
+
 class Perspect(object):
 
     def __init__(self, geometry, material, mechanics_bcs=None, porous_bcs=None,
@@ -15,8 +22,8 @@ class Perspect(object):
         self.pprob = PorousProblem(geometry, material, bcs=porous_bcs,
                                     parameters=parameters,
                                     solver_parameters=solver_parameters)
-        self.mprob = pulse.MechanicsProblem(geometry, material,
-                                            bcs=mechanics_bcs,
+        self.mprob = pulse.MechanicsProblem(get_mechanics_geometry(geometry),
+                                            material, bcs=mechanics_bcs,
                                             bcs_parameters={"": ""},
                                             solver_parameters=solver_parameters)
 
