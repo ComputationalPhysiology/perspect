@@ -1,5 +1,7 @@
 from collections import namedtuple
 
+import numpy as np
+
 import dolfin as df
 from dolfin import (
         Constant, Expression, FiniteElement, FunctionSpace, DirichletBC,
@@ -8,7 +10,6 @@ from dolfin import (
         NonlinearVariationalSolver
 )
 
-from pulse import HeartGeometry
 from pulse import kinematics
 from pulse.utils import get_lv_marker, set_default_none
 import pulse.mechanicsproblem
@@ -29,7 +30,10 @@ class PorousProblem(object):
         self.geometry = geometry
         self.material = material
         self.mesh = geometry.mesh
-        self.markers = get_lv_marker(self.geometry)
+        self.markers = self.geometry.markers
+        self.isbiv = False
+        if 'ENDO_RV' in self.markers.keys():
+            self.isbiv = True
 
         # Set parameters
         self.parameters = PorousProblem.default_parameters()
@@ -154,9 +158,16 @@ class PorousProblem(object):
 
     def permeability_tensor(self):
         fibers = self.geometry.f0
-        sheet = 0.1*self.geometry.s0
-        cross_sheet = 0.1*self.geometry.n0
-        d = self.geometry.geo_dim
+        if self.geometry.s0 is not None:
+            sheet = 0.1*self.geometry.s0
+            cross_sheet = 0.1*self.geometry.n0
+        else:
+            f0_space = self.geometry.f0.function_space()
+            sheet = Function(f0_space)
+            cross_sheet = Function(f0_space)
+            sheet.assign(Constant((0.1, 0.1, 0.1)))
+            cross_sheet.assign(Constant((0.1, 0.1, 0.1)))
+        d = self.geometry.dim()
         I = Identity(d)
         dx = self.geometry.dx
 
@@ -164,14 +175,25 @@ class PorousProblem(object):
         FS = FunctionSpace(self.geometry.mesh, 'P', 2)
         w = TrialFunction(FS)
         v = TestFunction(FS)
-        endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                                self.geometry.markers['ENDO'][0])
+
         epi = DirichletBC(FS, Constant(0.9), self.geometry.ffun,
                                                 self.geometry.markers['EPI'][0])
+        if self.isbiv:
+            endo_lv = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                            self.geometry.markers['ENDO_LV'][0])
+            endo_rv = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                            self.geometry.markers['ENDO_RV'][0])
+            bcs = [endo_lv, endo_rv, epi]
+
+        else:
+            endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                                self.geometry.markers['ENDO'][0])
+            bcs = [endo, epi]
+
         a = df.inner(df.grad(w), df.grad(v))*dx
         L = Constant(0)*v*dx
         w = Function(FS)
-        df.solve(a == L, w, [endo, epi])
+        df.solve(a == L, w, bcs)
 
         ftensor = df.as_matrix(
                     ((fibers[0], sheet[0], cross_sheet[0]),
@@ -196,14 +218,23 @@ class PorousProblem(object):
         FS = FunctionSpace(self.geometry.mesh, 'P', 2)
         w = TrialFunction(FS)
         v = TestFunction(FS)
-        endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                                self.geometry.markers['ENDO'][0])
-        epi = DirichletBC(FS, Constant(0), self.geometry.ffun,
+        epi = DirichletBC(FS, Constant(0.9), self.geometry.ffun,
                                                 self.geometry.markers['EPI'][0])
+        if self.isbiv:
+            endo_lv = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                            self.geometry.markers['ENDO_LV'][0])
+            endo_rv = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                            self.geometry.markers['ENDO_RV'][0])
+            bcs = [endo_lv, endo_rv, epi]
+
+        else:
+            endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
+                                                self.geometry.markers['ENDO'][0])
+            bcs = [endo, epi]
         a = df.inner(df.grad(w), df.grad(v))*dx
         L = Constant(0)*v*dx
         w = Function(FS)
-        df.solve(a == L, w, [endo, epi])
+        df.solve(a == L, w, bcs)
 
         self.pressure.assign(w)
 
