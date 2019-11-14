@@ -62,7 +62,7 @@ class PorousProblem(object):
         """
 
         return {
-            'N': 1, 'rho': 1.06, 'K': 1, 'phi': 0.021, 'beta': 0.02e4,
+            'N': 1, 'rho': 1.06, 'K': [1e-2], 'phi': [0.021], 'beta': [0.02],
             'qi': 0.0, 'qo': 0, 'tf': 1.0, 'dt': 1e-2, 'steps': 10,
             'theta': 0.5, 'mechanics': False
         }
@@ -111,8 +111,11 @@ class PorousProblem(object):
 
         # Get parameters
         rho = Constant(self.parameters['rho'])
-        beta = Constant(self.parameters['beta'])
-        K = Constant(self.parameters['K'])# * self.permeability_tensor()
+        beta = [Constant(beta) for beta in self.parameters['beta']]
+        if self.geometry.f0 is not None:
+            self.K = self.permeability_tensor()
+        else:
+            self.K = [Constant(K) for K in self.parameters['K']]
         dt = self.parameters['dt']/self.parameters['steps']
         qi = self.inflow_rate(self.parameters['qi'])
         qo = self.inflow_rate(self.parameters['qo'])
@@ -130,15 +133,15 @@ class PorousProblem(object):
         F = df.variable(kinematics.DeformationGradient(u))
         J = kinematics.Jacobian(F)
 
+        self._form = k*(m - m_n)*v*dx
 
         # porous dynamics
         if self.parameters['mechanics']:
-            A = rho * J * df.inv(F) * K * df.inv(F.T)
+            A = J*df.inv(F)*self.K*df.inv(F.T)
         else:
-            A = rho*K
+            A = Constant(1.0)
 
-        self._form = k*(m - m_n)*v*dx +\
-                            df.inner(-A*df.grad(p), df.grad(v))*dx
+        self._form += -df.inner(rho*A*df.grad(p), df.grad(v))*dx
 
         # add mechanics
         if self.parameters['mechanics']:
@@ -157,91 +160,59 @@ class PorousProblem(object):
 
 
     def permeability_tensor(self):
-        fibers = self.geometry.f0
-        if self.geometry.s0 is not None:
-            sheet = 0.1*self.geometry.s0
-            cross_sheet = 0.1*self.geometry.n0
-        else:
-            f0_space = self.geometry.f0.function_space()
-            sheet = Function(f0_space)
-            cross_sheet = Function(f0_space)
-            sheet.assign(Constant((0.1, 0.1, 0.1)))
-            cross_sheet.assign(Constant((0.1, 0.1, 0.1)))
+        FS = VectorFunctionSpace(self.geometry.mesh, 'P', 1)
         d = self.geometry.dim()
-        I = Identity(d)
-        dx = self.geometry.dx
-
-        # Calculate endo to epi permeability gradient
-        FS = FunctionSpace(self.geometry.mesh, 'P', 2)
-        w = TrialFunction(FS)
-        v = TestFunction(FS)
-
-        epi = DirichletBC(FS, Constant(0.9), self.geometry.ffun,
-                                                self.geometry.markers['EPI'][0])
-        if self.isbiv:
-            endo_lv = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                            self.geometry.markers['ENDO_LV'][0])
-            endo_rv = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                            self.geometry.markers['ENDO_RV'][0])
-            bcs = [endo_lv, endo_rv, epi]
-
+        K = self.parameters['K'][0]
+        fibers = df.project((1/df.norm(self.geometry.f0)) * self.geometry.f0, FS)
+        if self.geometry.s0 is not None:
+            # normalize vectors
+            sheet = self.geometry.s0 / df.norm(self.geometry.s0)
+            if d == 3:
+                csheet = self.geometry.n0 / df.norm(self.geometry.n0)
         else:
-            endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                                self.geometry.markers['ENDO'][0])
-            bcs = [endo, epi]
+            # need to create two orthogonal vectors
+            if d == 2:
+                s0 = df.interpolate(Constant((1,1)), FS)
+            elif d == 3:
+                s0 = df.interpolate(Constant((1,1,1)), FS)
+            sheet = df.project(s0 - df.dot(s0, fibers) * fibers, FS)
+            sheet.vector().get_local()[:] /=\
+                                np.linalg.norm(sheet.vector().get_local())
+            csheet = df.cross(fibers, sheet)
 
-        a = df.inner(df.grad(w), df.grad(v))*dx
-        L = Constant(0)*v*dx
-        w = Function(FS)
-        df.solve(a == L, w, bcs)
-
-        ftensor = df.as_matrix(
-                    ((fibers[0], sheet[0], cross_sheet[0]),
-                    (fibers[1], sheet[1], cross_sheet[1]),
-                    (fibers[2], sheet[2], cross_sheet[2])))
         from ufl import diag
-        fstar = diag(df.as_vector([fibers, sheet, cross_sheet]))
-        permeability = w*ftensor*fstar*ftensor.T
-        factor = df.assemble(df.inner(I, permeability)*dx)
-        return (1/factor) * permeability
+        if d == 3:
+            ftensor = df.as_matrix(
+                        ((fibers[0], sheet[0], csheet[0]),
+                        (fibers[1], sheet[1], csheet[1]),
+                        (fibers[2], sheet[2], csheet[2])))
+            ktensor = diag(df.as_vector([K, K/10, K/10]))
+        else:
+            ftensor = df.as_matrix(
+                        ((fibers[0], sheet[0]),
+                        (fibers[1], sheet[1])))
+            ktensor = diag(df.as_vector([K, K/10]))
+
+        permeability = df.dot(df.dot(ftensor, ktensor), df.inv(ftensor))
+        return permeability
 
 
     def update_mechanics(self, pressure, displacement, mech_velocity):
         self.pressure.assign(pressure)
+        # self.test_pressure()
         self.displacement.assign(displacement)
         self.mech_velocity.assign(mech_velocity)
 
 
     def test_pressure(self):
         # Calculate endo to epi permeability gradient
-        dx = self.geometry.dx
-        FS = FunctionSpace(self.geometry.mesh, 'P', 2)
-        w = TrialFunction(FS)
-        v = TestFunction(FS)
-        epi = DirichletBC(FS, Constant(0.9), self.geometry.ffun,
-                                                self.geometry.markers['EPI'][0])
-        if self.isbiv:
-            endo_lv = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                            self.geometry.markers['ENDO_LV'][0])
-            endo_rv = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                            self.geometry.markers['ENDO_RV'][0])
-            bcs = [endo_lv, endo_rv, epi]
-
-        else:
-            endo = DirichletBC(FS, Constant(1), self.geometry.ffun,
-                                                self.geometry.markers['ENDO'][0])
-            bcs = [endo, epi]
-        a = df.inner(df.grad(w), df.grad(v))*dx
-        L = Constant(0)*v*dx
-        w = Function(FS)
-        df.solve(a == L, w, bcs)
-
+        pe = Expression("1-x[0]*x[0]", degree=0)
+        w = df.interpolate(pe, self.pressure.function_space())
         self.pressure.assign(w)
 
 
     def calculate_darcy_flow(self):
         rho = Constant(self.parameters['rho'])
-        K = Constant(self.parameters['K']) * self.permeability_tensor()
         F = df.variable(kinematics.DeformationGradient(self.displacement))
         J = kinematics.Jacobian(F)
         dx = self.geometry.dx
@@ -251,7 +222,12 @@ class PorousProblem(object):
         w = TrialFunction(FS)
         v = TestFunction(FS)
         a = df.dot(F*w/rho, v)*dx
-        L = df.dot(-J * K * df.inv(F.T) * df.grad(self.pressure), v) * dx
+        # porous dynamics
+        if self.parameters['mechanics']:
+            L = df.dot(-J*self.K*df.inv(F.T)*df.grad(self.pressure), v) * dx
+        else:
+            L = df.dot(-self.K*df.grad(self.pressure), v) * dx
+
         w = Function(FS)
         df.solve(a == L, w, [])
         self.darcy_flow.assign(w)

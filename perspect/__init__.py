@@ -1,5 +1,5 @@
 
-from perspect.perspect import Perspect
+from perspect.perspect import Perspect, get_mechanics_geometry
 from perspect.porousproblem import PorousProblem
 from perspect import utils
 

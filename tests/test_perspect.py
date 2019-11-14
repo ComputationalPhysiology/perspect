@@ -1,22 +1,13 @@
-from perspect import (HeartGeometry, HolzapfelOgden, Perspect, mesh_paths)
+from perspect import (HolzapfelOgden, Perspect, mesh_paths)
+from geometry import HeartGeometry
 import pulse
 import dolfin as df
 import pytest
 
 def test_perspect(perspect, geometry, material, mechanics_bcs):
     assert perspect.pprob.geometry == geometry
-    assert perspect.mprob.geometry == geometry
     assert perspect.mprob.material == material
     assert perspect.mprob.bcs == mechanics_bcs
-
-
-def test_solve(perspect, pulse_problem):
-    perspect.solve()
-    pu, pp = perspect.mprob.state.split(deepcopy=True)
-    pulse_problem.solve()
-    mu, mp = pulse_problem.state.split(deepcopy=True)
-    assert df.errornorm(pu, mu) < 1e-10
-    assert df.errornorm(pp, mp) < 1e-10
 
 
 

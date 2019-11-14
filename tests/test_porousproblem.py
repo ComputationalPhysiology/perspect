@@ -1,10 +1,12 @@
-from perspect import (PorousProblem, HeartGeometry, HolzapfelOgden, mesh_paths)
+from perspect import (PorousProblem, HolzapfelOgden, mesh_paths,
+                        get_mechanics_geometry)
+from geometry import HeartGeometry
 import pulse
 import dolfin as df
 import pytest
 
 def test_porousproblem(geometry, material):
-    parameters = {'K': 1}
+    parameters = {'K': [1]}
     solver_parameters = {'newton_solver': {'maximum_iterations': 100}}
     p = PorousProblem(geometry, material, parameters=parameters,
                         solver_parameters=solver_parameters)
@@ -66,7 +68,7 @@ def material(geometry):
 
 @pytest.fixture
 def parameters():
-    parameters = {'K': 1}
+    parameters = {'K': [1]}
     return parameters
 
 @pytest.fixture
@@ -82,6 +84,7 @@ def porous_problem2(geometry, material, parameters):
 
 @pytest.fixture
 def mechanics_problem(geometry, material):
-    mechanics_problem = pulse.MechanicsProblem(geometry, material, bcs=None,
+    mech_geometry = get_mechanics_geometry(geometry)
+    mechanics_problem = pulse.MechanicsProblem(mech_geometry, material, bcs=None,
                                             bcs_parameters={"": ""})
     return mechanics_problem
