@@ -228,9 +228,9 @@ class PorousProblem(object):
         N = self.parameters['N']
         phi = self.parameters['phi']
         if N == 1:
-            self.pressure[0].assign(phi[0]*pressure)
+            self.pressure.assign(phi[0]*pressure)
         else:
-            [self.pressure[i].assign(phi[i]*pressure) for i in range(N)]
+            [self.pressure.sub(i).assign(phi[i]*pressure) for i in range(N)]
         self.displacement.assign(displacement)
         self.mech_velocity.assign(mech_velocity)
 
