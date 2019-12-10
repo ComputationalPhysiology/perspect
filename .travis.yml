@@ -29,9 +29,15 @@ install:
   - conda config --add channels conda-forge
 
   # Set up environment
-  - conda create -n perspect pulse pytest
+  - conda create -n perspect fenics
 
   # Activate environment
+  - source activate perspect
+  - pip uninstall h5py
+  - pip install -r requirements.txt
+  - pip install git+https://github.com/ComputationalPhysiology/fenics-geometry.git
+  - pip install git+https://github.com/ComputationalPhysiology/pulse.git
+  - pip install .
   - source activate perspect
   - python setup.py install
 
