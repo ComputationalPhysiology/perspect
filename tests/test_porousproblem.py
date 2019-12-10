@@ -1,10 +1,12 @@
-from perspect import (PorousProblem, HeartGeometry, HolzapfelOgden, mesh_paths)
+from perspect import (PorousProblem, HolzapfelOgden, mesh_paths,
+                        get_mechanics_geometry)
+from geometry import HeartGeometry
 import pulse
 import dolfin as df
 import pytest
 
 def test_porousproblem(geometry, material):
-    parameters = {'K': 1}
+    parameters = {'K': [1]}
     solver_parameters = {'newton_solver': {'maximum_iterations': 100}}
     p = PorousProblem(geometry, material, parameters=parameters,
                         solver_parameters=solver_parameters)
@@ -14,9 +16,12 @@ def test_porousproblem(geometry, material):
 
     assert 'K' in p.parameters
     assert p.parameters['K'] == parameters['K']
-
     assert p.solver_parameters['newton_solver']['maximum_iterations'] ==\
                     solver_parameters['newton_solver']['maximum_iterations']
+
+    with pytest.raises(ValueError):
+        parameters = {'N': 2, 'K': [1]}
+        p = PorousProblem(geometry, material, parameters=parameters)
 
 
 def test_init_spaces(porous_problem, porous_problem2):
@@ -66,7 +71,7 @@ def material(geometry):
 
 @pytest.fixture
 def parameters():
-    parameters = {'K': 1}
+    parameters = {'K': [1]}
     return parameters
 
 @pytest.fixture
@@ -76,12 +81,13 @@ def porous_problem(geometry, material, parameters):
 
 @pytest.fixture
 def porous_problem2(geometry, material, parameters):
-    parameters.update({'N': 2})
+    parameters.update({'N': 2, 'K': [1.0, 1.0]})
     porous_problem = PorousProblem(geometry, material, parameters=parameters)
     return porous_problem
 
 @pytest.fixture
 def mechanics_problem(geometry, material):
-    mechanics_problem = pulse.MechanicsProblem(geometry, material, bcs=None,
+    mech_geometry = get_mechanics_geometry(geometry)
+    mechanics_problem = pulse.MechanicsProblem(mech_geometry, material, bcs=None,
                                             bcs_parameters={"": ""})
     return mechanics_problem
