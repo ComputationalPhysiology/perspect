@@ -42,7 +42,7 @@ class PorousProblem(object):
 
         # Create function spaces
         self._init_spaces()
-        self._init_porous_form()
+        self._init_form()
         self.t = 0.0
 
         # Set up solver
