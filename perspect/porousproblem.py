@@ -40,6 +40,14 @@ class PorousProblem(object):
         if parameters is not None:
             self.parameters.update(parameters)
 
+        if self.parameters['N'] > 1 and\
+                            len(self.parameters['K']) != self.parameters['N']:
+            N = self.parameters['N']
+            K = self.parameters['K']
+            msg = "Parameter N is {}, but K contains {} elements."\
+                    "K has to contain exactly N elements.".format(N, len(K))
+            raise ValueError(msg)
+
         # Create function spaces
         self._init_spaces()
         self._init_form()
@@ -74,7 +82,24 @@ class PorousProblem(object):
 
 
     def _init_spaces(self):
-        pass
+        P2 = FiniteElement('P', self.mesh.ufl_cell(), 2)
+        N = self.parameters['N']
+        if N == 1:
+            elem = P2
+        else:
+            elem = MixedElement([P2 for i in range(N)])
+        v_elem = VectorElement('P', self.mesh.ufl_cell(), 1)
+
+        mesh = self.mesh
+        self.state_space = FunctionSpace(mesh, elem)
+        self.vector_space = FunctionSpace(mesh, v_elem)
+        self.state = Function(self.state_space)
+        self.state_previous = Function(self.state_space)
+        self.state_test = TestFunction(self.state_space)
+        self.displacement = Function(self.vector_space)
+        self.mech_velocity = Function(self.vector_space)
+        self.pressure = Function(self.state_space)
+        self.darcy_flow = Function(self.vector_space)
 
 
     def _init_form(self):
@@ -83,20 +108,9 @@ class PorousProblem(object):
         v = self.state_test
         u = self.displacement
         du = self.mech_velocity
+        p = self.pressure
 
         N = self.parameters['N']
-
-        # Multi-compartment functionality comes later
-        if N == 1:
-            m = self.state[0]
-            m_n = self.state_previous[0]
-            v = self.state_test[0]
-            p = self.pressure[0]
-        else:
-            m = self.state
-            m_n = self.state_previous
-            v = self.state_test
-            p = self.pressure
 
         # Get parameters
         rho = Constant(self.parameters['rho'])
@@ -131,13 +145,13 @@ class PorousProblem(object):
         if self.parameters['mechanics']:
             A = [J*df.inv(F)*K*df.inv(F.T) for K in self.K]
         else:
-            A = [Constant(1.0)*K for i in range(N)]
+            A = [Constant(1.0)*K for K in self.K]
 
         if N == 1:
-            self._form += -df.inner(rho*A[i]*df.grad(p), df.grad(v))*dx
+            self._form += -df.inner(rho*A[0]*df.grad(p), df.grad(v))*dx
         else:
             self._form += sum([
-                        -df.inner(rho*A[i]*df.grad(p[i]), df.grad(v[i]))*dx
+                        -df.inner(rho*A[i]*df.grad(p.sub(i)), df.grad(v[i]))*dx
                                                             for i in range(N)])
 
         # compartment coupling

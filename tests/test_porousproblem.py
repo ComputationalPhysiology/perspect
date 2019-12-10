@@ -16,9 +16,12 @@ def test_porousproblem(geometry, material):
 
     assert 'K' in p.parameters
     assert p.parameters['K'] == parameters['K']
-
     assert p.solver_parameters['newton_solver']['maximum_iterations'] ==\
                     solver_parameters['newton_solver']['maximum_iterations']
+
+    with pytest.raises(ValueError):
+        parameters = {'N': 2, 'K': [1]}
+        p = PorousProblem(geometry, material, parameters=parameters)
 
 
 def test_init_spaces(porous_problem, porous_problem2):
@@ -78,7 +81,7 @@ def porous_problem(geometry, material, parameters):
 
 @pytest.fixture
 def porous_problem2(geometry, material, parameters):
-    parameters.update({'N': 2})
+    parameters.update({'N': 2, 'K': [1.0, 1.0]})
     porous_problem = PorousProblem(geometry, material, parameters=parameters)
     return porous_problem
 
