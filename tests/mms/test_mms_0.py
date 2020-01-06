@@ -4,7 +4,7 @@ from geometry import Geometry, MarkerFunctions, Microstructure
 
 comm = df.MPI.comm_world
 
-def manufactured_solution(mesh):
+def manufactured_solution(mesh, rho):
     from sympy import sin, cos
     import sympy as sym
     # Set up manufactured solution
@@ -13,16 +13,16 @@ def manufactured_solution(mesh):
     F = lambda x: cos(x) #* cos(y) * cos(z)
 
     # define pressure
-    p = F(x)# + H(y) + H(z)
+    p = 1-x**2
     p_code = sym.printing.ccode(p)
     print('C code for p:', p_code)
-    p_D = df.Expression(p_code, domain=mesh, degree=1)
+    p_D = df.Expression(p_code, domain=mesh, degree=2)
 
     # define solution
-    m = 0
+    m = 1-x**2
     m_code = sym.printing.ccode(m)
     print('C code for m:', m_code)
-    m_D = df.Expression(m_code, domain=mesh, degree=1)
+    m_D = df.Expression(m_code, domain=mesh, degree=2)
 
     # define permeability tensor
     k00 = 1
@@ -31,26 +31,26 @@ def manufactured_solution(mesh):
     k11 = 1
     k12 = k21 = 0
     k22 = 1
-    rho = 1.06
 
     # calculate source term
     gradp_x = sym.diff(p, x)
     gradp_y = sym.diff(p, y)
     gradp_z = sym.diff(p, z)
-    kgradp_x = -(k00*gradp_x + k01*gradp_y + k02*gradp_z)
-    kgradp_y = -(k10*gradp_x + k11*gradp_y + k12*gradp_z)
-    kgradp_z = -(k20*gradp_x + k21*gradp_y + k22*gradp_z)
+    kgradp_x = -k00*gradp_x - k01*gradp_y - k02*gradp_z
+    kgradp_y = -k10*gradp_x - k11*gradp_y - k12*gradp_z
+    kgradp_z = -k20*gradp_x - k21*gradp_y - k22*gradp_z
     divkp = sym.diff(kgradp_x, x) + sym.diff(kgradp_y, y) + sym.diff(kgradp_z, z)
+    print(divkp)
     q = m/rho + divkp
     q = sym.simplify(q)
     q_code = sym.printing.ccode(q)
     print('C code for q:', q_code)
-    q_D = df.Expression(q_code, domain=mesh, degree=1)
+    q_D = df.Expression(q_code, domain=mesh, degree=2)
 
     return p_D, m_D, q_D
 
 
-def run_perspect(mesh, qi, p):
+def run_perspect(mesh, qi, p_D, rho):
 
     # define boundaries
     class Base(df.SubDomain):
@@ -92,9 +92,9 @@ def run_perspect(mesh, qi, p):
 
     # Setup simulation
     parameters = {'mechanics': False, 'K': [1], 'qi': qi, 'qo': 0, 'dt': 1.0,
-                    'theta': 1, 'steps': 1}
+                    'theta': 1, 'steps': 1, 'rho': rho}
     pspect = perspect.Perspect(geometry, parameters=parameters)
-    pspect.pprob.prescribed_pressure(p)
+    pspect.pprob.prescribed_pressure(p_D)
     pspect.solve_porous()
 
     m = pspect.pprob.state
@@ -105,16 +105,17 @@ def run_perspect(mesh, qi, p):
 
 
 def test_mms0():
-    nx = 5
-    ny = 5
-    nz = 5
+    nx = 10
+    ny = 10
+    nz = 10
+    rho = 1
     mesh = df.UnitCubeMesh(nx, ny, nz)
 
     # load mms
-    p_D, m_D, q_D = manufactured_solution(mesh)
+    p_D, m_D, q_D = manufactured_solution(mesh, rho)
 
     # load perspect solution
-    m, p, u = run_perspect(mesh, q_D, p_D)
+    m, p, u = run_perspect(mesh, q_D, p_D, rho)
 
     print(df.assemble(m*df.dx), df.assemble(m_D*df.dx))
 
@@ -128,7 +129,8 @@ def test_mms0():
     # mfile.write(q_D, 0)
     mfile.close()
 
-    print(df.errornorm(m, m_D, mesh=mesh))
+    print(df.errornorm(m_D, m, mesh=mesh))
+    print(mesh.hmin()**2)
     # assert df.errornorm(m, m_D, mesh=mesh) < 1e-5
 
 

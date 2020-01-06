@@ -153,10 +153,10 @@ class PorousProblem(object):
             A = [Constant(1.0)*K for K in self.K]
 
         if N == 1:
-            self._form += -df.dot(-rho*A[0]*df.grad(p), df.grad(v))*dx
+            self._form += df.div(-rho*A[0]*df.grad(p))*v*dx
         else:
             self._form += sum([
-                        -df.dot(-rho*A[i]*df.grad(p.sub(i)), df.grad(v[i]))*dx
+                        df.dot(-rho*A[i]*df.grad(p.sub(i)))*v[i]*dx
                                                             for i in range(N)])
 
         # compartment coupling
@@ -177,21 +177,22 @@ class PorousProblem(object):
                 self._form += sum([-df.dot(df.grad(M[i]), du)*v[i]*dx
                                                             for i in range(N)])
 
-        # qi = df.Expression("cos(x[0])", degree=1)/Constant(self.mesh.num_cells())
         # Add inflow/outflow terms
         if N == 1:
             self._form -= rho*qi*v*dx - rho*qo*v*dx
         else:
             self._form -= rho*qi*v[0]*dx - rho*qo*v[-1]*dx
 
+        # self._form = m*v*dx + df.div(-A[0]*df.grad(p))*v*dx - qi*v*dx
+
 
     def inflow_rate(self, rate):
         if isinstance(rate, (int, float)):
-            rate = Constant(rate/self.mesh.num_cells())
+            rate = Constant(rate)
         elif isinstance(rate, str):
-            rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
+            rate = Expression(rate, degree=1)
         elif isinstance(rate, df.function.expression.Expression):
-            rate = rate/Constant(self.mesh.num_cells())
+            rate = rate
         return rate
 
 
