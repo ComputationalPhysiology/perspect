@@ -186,7 +186,6 @@ class PorousProblem(object):
 
 
     def inflow_rate(self, rate):
-        print(type(rate))
         if isinstance(rate, (int, float)):
             rate = Constant(rate/self.mesh.num_cells())
         elif isinstance(rate, str):
