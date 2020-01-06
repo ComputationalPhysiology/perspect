@@ -15,21 +15,23 @@ def get_mechanics_geometry(geometry):
 
 class Perspect(object):
 
-    def __init__(self, geometry, material, mechanics_bcs=None, porous_bcs=None,
-                    parameters=None, solver_parameters=None):
+    def __init__(self, geometry, material=None, mechanics_bcs=None,
+                    porous_bcs=None, parameters=None, solver_parameters=None):
         self.geometry = geometry
-        self.material = material
+        
         self.pprob = PorousProblem(geometry, material, bcs=porous_bcs,
                                     parameters=parameters,
                                     solver_parameters=solver_parameters)
-        self.mprob = pulse.MechanicsProblem(get_mechanics_geometry(geometry),
-                                            material, bcs=mechanics_bcs,
-                                            bcs_parameters={"": ""})
-        if solver_parameters is not None:
-            self.mprob.solver_parameters.update(solver_parameters)
+    
+        if parameters['mechanics']:
+            self.material = material
+            self.mprob = pulse.MechanicsProblem(get_mechanics_geometry(geometry),
+                                                material, bcs=mechanics_bcs)
+            if solver_parameters is not None:
+                self.mprob.solver_parameters.update(solver_parameters)
 
-        # set pulse log level
-        pulse.parameters.update({'log_level': df.get_log_level()})
+            # set pulse log level
+            pulse.parameters.update({'log_level': df.get_log_level()})
 
 
     def update_mechanics(self):
