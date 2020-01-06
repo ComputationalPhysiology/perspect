@@ -93,13 +93,14 @@ class PorousProblem(object):
         mesh = self.mesh
         self.state_space = FunctionSpace(mesh, elem)
         self.vector_space = FunctionSpace(mesh, v_elem)
-        self.state = Function(self.state_space)
+        self.state = Function(self.state_space, name="m")
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
-        self.displacement = Function(self.vector_space)
+        self.displacement = Function(self.vector_space, name="du")
         self.mech_velocity = Function(self.vector_space)
-        self.pressure = Function(self.state_space)
-        self.darcy_flow = Function(self.vector_space)
+        self.pressure = Function(self.state_space, name="p")
+        self.darcy_flow = [Function(self.vector_space, name="w") 
+                                                            for i in range(N)]
 
 
     def _init_form(self):
@@ -115,10 +116,14 @@ class PorousProblem(object):
         # Get parameters
         rho = Constant(self.parameters['rho'])
         beta = [Constant(beta) for beta in self.parameters['beta']]
-        if self.geometry.f0 is not None:
-            self.K = [self.permeability_tensor(K) for K in self.parameters['K']]
+        if isinstance(self.parameters['K'], float):
+            K = [self.parameters['K']]
         else:
-            self.K = [Constant(K) for K in self.parameters['K']]
+            K = self.parameters['K']
+        if self.geometry.f0 is not None:
+            self.K = [self.permeability_tensor(k) for k in K]
+        else:
+            self.K = [Constant(k) for k in K]
         dt = self.parameters['dt']/self.parameters['steps']
         qi = self.inflow_rate(self.parameters['qi'])
         qo = self.inflow_rate(self.parameters['qo'])
@@ -148,19 +153,19 @@ class PorousProblem(object):
             A = [Constant(1.0)*K for K in self.K]
 
         if N == 1:
-            self._form += -df.inner(rho*A[0]*df.grad(p), df.grad(v))*dx
+            self._form += -df.dot(-rho*A[0]*df.grad(p), df.grad(v))*dx
         else:
             self._form += sum([
-                        -df.inner(rho*A[i]*df.grad(p.sub(i)), df.grad(v[i]))*dx
+                        -df.dot(-rho*A[i]*df.grad(p.sub(i)), df.grad(v[i]))*dx
                                                             for i in range(N)])
 
         # compartment coupling
         if N > 1:
             # forward
-            self._form += sum([-J*beta[i]*(p[i]-p[i+1])*v[i]*dx
+            self._form -= sum([-J*beta[i]*(p[i]-p[i+1])*v[i]*dx
                                                         for i in range(N-1)])
             # backward
-            self._form += sum([-J*beta[i-1]*(p[i]-p[i-1])*v[i]*dx
+            self._form -= sum([-J*beta[i-1]*(p[i]-p[i-1])*v[i]*dx
                                                         for i in range(1, N)])
 
 
@@ -172,18 +177,22 @@ class PorousProblem(object):
                 self._form += sum([-df.dot(df.grad(M[i]), du)*v[i]*dx
                                                             for i in range(N)])
 
+        # qi = df.Expression("cos(x[0])", degree=1)/Constant(self.mesh.num_cells())
         # Add inflow/outflow terms
         if N == 1:
-            self._form += -rho*qi*v*dx + rho*qo*v*dx
+            self._form -= rho*qi*v*dx - rho*qo*v*dx
         else:
-            self._form += -rho*qi*v[0]*dx + rho*qo*v[-1]*dx
+            self._form -= rho*qi*v[0]*dx - rho*qo*v[-1]*dx
 
 
     def inflow_rate(self, rate):
+        print(type(rate))
         if isinstance(rate, (int, float)):
             rate = Constant(rate/self.mesh.num_cells())
         elif isinstance(rate, str):
             rate = Expression(rate, degree=1)/Constant(self.mesh.num_cells())
+        elif isinstance(rate, df.function.expression.Expression):
+            rate = rate/Constant(self.mesh.num_cells())
         return rate
 
 
@@ -208,17 +217,18 @@ class PorousProblem(object):
             csheet = df.cross(fibers, sheet)
 
         from ufl import diag
+        factor = 1
         if d == 3:
             ftensor = df.as_matrix(
                         ((fibers[0], sheet[0], csheet[0]),
                         (fibers[1], sheet[1], csheet[1]),
                         (fibers[2], sheet[2], csheet[2])))
-            ktensor = diag(df.as_vector([K, K/10, K/10]))
+            ktensor = diag(df.as_vector([K, K/factor, K/factor]))
         else:
             ftensor = df.as_matrix(
                         ((fibers[0], sheet[0]),
                         (fibers[1], sheet[1])))
-            ktensor = diag(df.as_vector([K, K/10]))
+            ktensor = diag(df.as_vector([K, K/factor]))
 
         permeability = df.dot(df.dot(ftensor, ktensor), df.inv(ftensor))
         return permeability
@@ -230,14 +240,14 @@ class PorousProblem(object):
         if N == 1:
             self.pressure.assign(phi[0]*pressure)
         else:
-            [self.pressure.sub(i).assign(phi[i]*pressure) for i in range(N)]
+            for i in range(N):
+                self.pressure.sub(i).assign(phi[i]*pressure)
         self.displacement.assign(displacement)
         self.mech_velocity.assign(mech_velocity)
 
 
-    def test_pressure(self):
+    def prescribed_pressure(self, pe):
         # Calculate endo to epi permeability gradient
-        pe = Expression("1-x[0]*x[0]", degree=0)
         w = df.interpolate(pe, self.pressure.function_space())
         self.pressure.assign(w)
 
@@ -257,13 +267,17 @@ class PorousProblem(object):
         if self.parameters['mechanics']:
             A = [J*self.K[i]*df.inv(F.T) for i in range(N)]
         else:
-            A = [Constant(1.0) for i in range(N)]
-        L = [df.dot(-A[i]*df.grad(self.pressure[i]), v[i])*dx
+            A = [self.K[i] for i in range(N)]
+        if N == 1:
+            L = [df.dot(-A[0]*df.grad(self.pressure), v[0])*dx]
+        else:
+            L = [df.dot(-A[i]*df.grad(self.pressure.sub(i)), v[i])*dx
                                                             for i in range(N)]
 
         w = [Function(self.vector_space) for i in range(N)]
         [df.solve(a[i] == L[i], w[i], []) for i in range(N)]
-        [self.darcy_flow[i].assign(w[i]) for i in range(N)]
+        for i in range(N):
+            self.darcy_flow[i].assign(w[i])
 
 
     def solve(self):
