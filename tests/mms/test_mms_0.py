@@ -105,7 +105,7 @@ def run_perspect(mesh, qi, p_D, rho):
 
 
 def test_mms0():
-    nx = ny = nz = 50
+    nx = ny = nz = 5
     rho = 1
     mesh = df.UnitCubeMesh(nx, ny, nz)
 
