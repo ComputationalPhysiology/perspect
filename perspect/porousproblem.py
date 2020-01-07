@@ -156,7 +156,7 @@ class PorousProblem(object):
             self._form += df.div(-rho*A[0]*df.grad(p))*v*dx
         else:
             self._form += sum([
-                        df.dot(-rho*A[i]*df.grad(p.sub(i)))*v[i]*dx
+                        df.div(-rho*A[i]*df.grad(p.sub(i)))*v[i]*dx
                                                             for i in range(N)])
 
         # compartment coupling
