@@ -199,7 +199,8 @@ class PorousProblem(object):
     def permeability_tensor(self, K):
         FS = VectorFunctionSpace(self.geometry.mesh, 'P', 1)
         d = self.geometry.dim()
-        fibers = df.project((1/df.norm(self.geometry.f0)) * self.geometry.f0, FS)
+        fibers = df.project((1/df.norm(self.geometry.f0)) * self.geometry.f0, 
+                            FS, solver_type="mumps")
         if self.geometry.s0 is not None:
             # normalize vectors
             sheet = self.geometry.s0 / df.norm(self.geometry.s0)
@@ -211,7 +212,8 @@ class PorousProblem(object):
                 s0 = df.interpolate(Constant((1,1)), FS)
             elif d == 3:
                 s0 = df.interpolate(Constant((1,1,1)), FS)
-            sheet = df.project(s0 - df.dot(s0, fibers) * fibers, FS)
+            sheet = df.project(s0 - df.dot(s0, fibers) * fibers, FS,
+                                solver_type="mumps")
             sheet.vector().get_local()[:] /=\
                                 np.linalg.norm(sheet.vector().get_local())
             csheet = df.cross(fibers, sheet)
