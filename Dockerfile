@@ -16,7 +16,8 @@ RUN pip uninstall h5py
 RUN pip install h5py --no-binary=h5py
 
 # Install pulse
-RUN pip install git+https://github.com/finsberg/pulse.git
+RUN pip install ldrb
+RUN pip install git+https://github.com/ComputationalPhysiology/pulse.git
 
 # Install fenics-geometry
 RUN pip install git+https://github.com/ComputationalPhysiology/fenics-geometry.git
