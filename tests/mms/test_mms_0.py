@@ -13,13 +13,13 @@ def manufactured_solution(mesh, rho):
     F = lambda x: cos(x) #* cos(y) * cos(z)
 
     # define pressure
-    p = 1-x**2
+    p = H(x) * H(y) * H(z)
     p_code = sym.printing.ccode(p)
     print('C code for p:', p_code)
     p_D = df.Expression(p_code, domain=mesh, degree=2)
 
     # define solution
-    m = 1-x**2
+    m = F(x) * F(y) * F(z)
     m_code = sym.printing.ccode(m)
     print('C code for m:', m_code)
     m_D = df.Expression(m_code, domain=mesh, degree=2)
@@ -105,9 +105,7 @@ def run_perspect(mesh, qi, p_D, rho):
 
 
 def test_mms0():
-    nx = 10
-    ny = 10
-    nz = 10
+    nx = ny = nz = 50
     rho = 1
     mesh = df.UnitCubeMesh(nx, ny, nz)
 
@@ -129,8 +127,7 @@ def test_mms0():
     # mfile.write(q_D, 0)
     mfile.close()
 
-    print(df.errornorm(m_D, m, mesh=mesh))
-    print(mesh.hmin()**2)
+    print(mesh.hmin(), df.errornorm(m_D, m, mesh=mesh))
     # assert df.errornorm(m, m_D, mesh=mesh) < 1e-5
 
 
