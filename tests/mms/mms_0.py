@@ -80,7 +80,7 @@ def run_perspect(mesh, qi, p_D, m_D, rho):
     return m
 
 
-def test_mms0():
+def run_mms0():
     df.set_log_level(20)
     N = [2, 4, 8, 16, 32, 40, 50, 60, 70, 80]
     errors = []
@@ -126,4 +126,4 @@ def test_mms0():
     plt.savefig("mms0_convergence.png")
 
 if __name__ == '__main__':
-    test_mms0()
+    run_mms0()
