@@ -133,7 +133,13 @@ class PorousProblem(object):
         # Crank-Nicolson time scheme
         M = Constant(theta)*m + Constant(1-theta)*m_n
 
+        # Mechanics
+        from ufl import grad as ufl_grad
         dx = self.geometry.dx
+        d = self.state.geometric_dimension()
+        I = Identity(d)
+        F = df.variable(kinematics.DeformationGradient(u))
+        J = kinematics.Jacobian(F)
 
         if N == 1:
             self._form = k*(m - m_n)*v*dx
