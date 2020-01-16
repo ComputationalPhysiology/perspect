@@ -4,6 +4,8 @@ from ufl import grad as ufl_grad
 import pulse
 
 from perspect.porousproblem import PorousProblem
+from perspect.lagrangian_particles import LagrangianParticles, RandomSphere,\
+                                            RandomCircle, ParticlesFromPoint
 
 
 def get_mechanics_geometry(geometry):
@@ -32,6 +34,12 @@ class Perspect(object):
 
             # set pulse log level
             pulse.parameters.update({'log_level': df.get_log_level()})
+
+        # if parameters['particle_tracking']:
+        #     w = self.pprob.darcy_flow
+        #     self.lpart = LagrangianParticles(w)
+        #     self.lp_inlet = parameters['particle_inlet']
+        #     self.lp_geom = parameters['particle_geometry']
 
 
     def update_mechanics(self):
@@ -123,5 +131,37 @@ class Perspect(object):
         pulse.iterate.iterate(self.mprob, control, target, **kwargs)
 
 
-    def solve_porous(self):
-        self.pprob.solve()
+    def solve_porous(self, bcs=[]):
+        self.pprob.solve(bcs)
+
+
+    def add_particles(self, n, centre=None):
+        if centre == None:
+            centre = []
+            inlet_facets = SubsetIterator(self.geometry.markers, self.lp_inlet)
+            for facet in inlet_facets:
+                centre.append(facet.midpoint().array())
+
+        particle_positions = []
+        count = int(n/len(centre))
+        diff = n-(count*len(centre)) # leftover particles if we can't perfectly divide n
+        for c in centre:
+            if self.dim == 2:
+                c = c[:2]
+            extra = 0
+            if diff > 0:
+                extra += 1
+                diff -= 1
+            if self.lp_geom == "circle":
+                circ = RandomCircle(c, 0.01)
+                particles = circ.generate([1,count+extra])
+            elif self.lp_geom == "sphere":
+                circ = RandomSphere(c, 0.1)
+                particles = circ.generate([1,5,5])
+            elif self.lp_geom == "from_point":
+                circ = ParticlesFromPoint(c)
+                particles = circ.generate(count+extra)
+            for p in particles:
+                particle_positions.append(p)
+
+        self.lp.add_particles(particle_positions)
