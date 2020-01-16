@@ -4,10 +4,10 @@ import numpy as np
 
 import dolfin as df
 from dolfin import (
-        Constant, Expression, FiniteElement, FunctionSpace, DirichletBC,
-        Function, TestFunction, TrialFunction, Identity, VectorElement,
-        VectorFunctionSpace, MixedElement, NonlinearVariationalProblem,
-        NonlinearVariationalSolver
+        Constant, Expression, FacetNormal, FiniteElement, FunctionSpace,
+        DirichletBC, Function, TestFunction, TrialFunction, Identity,
+        VectorElement, VectorFunctionSpace, MixedElement, 
+        LinearVariationalProblem, LinearVariationalSolver
 )
 
 from pulse import kinematics
@@ -78,7 +78,7 @@ class PorousProblem(object):
 
     @staticmethod
     def default_solver_parameters():
-        return NonlinearVariationalSolver.default_parameters()
+        return df.LinearVariationalSolver.default_parameters()
 
 
     def _init_spaces(self):
@@ -99,12 +99,12 @@ class PorousProblem(object):
         self.displacement = Function(self.vector_space, name="du")
         self.mech_velocity = Function(self.vector_space)
         self.pressure = Function(self.state_space, name="p")
-        self.darcy_flow = [Function(self.vector_space, name="w") 
+        self.darcy_flow = [Function(self.vector_space, name="w")
                                                             for i in range(N)]
 
 
     def _init_form(self):
-        m = self.state
+        m = TrialFunction(self.state_space)
         m_n = self.state_previous
         v = self.state_test
         u = self.displacement
@@ -148,6 +148,8 @@ class PorousProblem(object):
 
         # porous dynamics
         if self.parameters['mechanics']:
+            F = df.variable(kinematics.DeformationGradient(u))
+            J = kinematics.Jacobian(F)
             A = [J*df.inv(F)*K*df.inv(F.T) for K in self.K]
         else:
             A = [Constant(1.0)*K for K in self.K]
@@ -156,7 +158,7 @@ class PorousProblem(object):
             self._form += df.div(-rho*A[0]*df.grad(p))*v*dx
         else:
             self._form += sum([
-                        df.div(-rho*A[i]*df.grad(p.sub(i)))*v[i]*dx
+                    df.div(-rho*A[0]*df.grad(p.sub(i)))*v[i]*dx 
                                                             for i in range(N)])
 
         # compartment coupling
@@ -179,18 +181,16 @@ class PorousProblem(object):
 
         # Add inflow/outflow terms
         if N == 1:
-            self._form -= rho*qi*v*dx - rho*qo*v*dx
+            self._form -= rho*qi*v*dx + rho*qo*v*dx
         else:
-            self._form -= rho*qi*v[0]*dx - rho*qo*v[-1]*dx
+            self._form -= rho*qi*v[0]*dx + rho*qo*v[-1]*dx
 
-        # self._form = m*v*dx + df.div(-A[0]*df.grad(p))*v*dx - qi*v*dx
+        # self._form = m*v*dx + df.div(-rho*df.grad(p))*v*dx - rho*qi*v*dx
 
 
     def inflow_rate(self, rate):
         if isinstance(rate, (int, float)):
             rate = Constant(rate)
-        elif isinstance(rate, str):
-            rate = Expression(rate, degree=1)
         elif isinstance(rate, df.function.expression.Expression):
             rate = rate
         return rate
@@ -199,8 +199,7 @@ class PorousProblem(object):
     def permeability_tensor(self, K):
         FS = VectorFunctionSpace(self.geometry.mesh, 'P', 1)
         d = self.geometry.dim()
-        fibers = df.project((1/df.norm(self.geometry.f0)) * self.geometry.f0, 
-                            FS, solver_type="mumps")
+        fibers = (1/df.norm(self.geometry.f0)) * self.geometry.f0
         if self.geometry.s0 is not None:
             # normalize vectors
             sheet = self.geometry.s0 / df.norm(self.geometry.s0)
@@ -277,33 +276,27 @@ class PorousProblem(object):
                                                             for i in range(N)]
 
         w = [Function(self.vector_space) for i in range(N)]
-        [df.solve(a[i] == L[i], w[i], []) for i in range(N)]
+        [df.solve(a[i] == L[i], w[i], [],
+            solver_parameters={"linear_solver": "cg", "preconditioner": "sor"}) 
+                                                            for i in range(N)]
         for i in range(N):
             self.darcy_flow[i].assign(w[i])
 
 
-    def solve(self):
-        r"""
+    def solve(self, bcs=[]):
+        """
         Solve the variational problem
 
         """
 
-        # Only recalculate Jacobian if Newton solver takes too many iterations
-        if self.newton_steps > 10:
-            self._jacobian = df.derivative(
-                self._form, self.state, TrialFunction(self.state_space)
-            )
-
         logger.debug("Solving porous problem")
-        # Get old state in case of non-convergence
-        old_state = self.state.copy(deepcopy=True)
 
-        problem = NonlinearVariationalProblem(
-            self._form, self.state, J=self._jacobian
-        )
+        a, L = df.lhs(self._form), df.rhs(self._form)
+        problem = LinearVariationalProblem(a, L, self.state, bcs=bcs)
 
-        solver = NonlinearVariationalSolver(problem)
+        solver = LinearVariationalSolver(problem)
         solver.parameters.update(self.solver_parameters)
+        solver.solve()
 
         for i in range(self.parameters['steps']):
             try:
@@ -316,14 +309,8 @@ class PorousProblem(object):
 
             try:
                 logger.debug("Trying...")
-                nliter, nlconv = solver.solve()
-                if not nlconv:
-                    logger.debug("Failed")
-                    logger.debug("Solver did not converge...")
-                    break
+                solver.solve()
             except RuntimeError as ex:
-                nliter = 0
-                nlconv = False
                 logger.debug("Failed")
                 logger.debug("Solver did not converge...")
                 break
@@ -331,11 +318,5 @@ class PorousProblem(object):
             else:
                 logger.debug("Solved")
 
-                # Update old state
-
-            self.newton_steps = nliter
-
         self.state_previous.assign(self.state)
         self.calculate_darcy_flow()
-
-        return nliter, nlconv

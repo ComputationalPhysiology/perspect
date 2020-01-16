@@ -102,3 +102,17 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Paraview files
+*.xdmf
+*.h5
+*.pvd
+*.vtu
+*.vtk
+*.pvtu
+
+# Jit
+jit*
+
+# Plots
+*.png

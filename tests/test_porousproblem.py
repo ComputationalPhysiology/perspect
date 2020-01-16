@@ -7,7 +7,7 @@ import pytest
 
 def test_porousproblem(geometry, material):
     parameters = {'K': [1]}
-    solver_parameters = {'newton_solver': {'maximum_iterations': 100}}
+    solver_parameters = {'linear_solver': 'cg'}
     p = PorousProblem(geometry, material, parameters=parameters,
                         solver_parameters=solver_parameters)
 
@@ -16,8 +16,8 @@ def test_porousproblem(geometry, material):
 
     assert 'K' in p.parameters
     assert p.parameters['K'] == parameters['K']
-    assert p.solver_parameters['newton_solver']['maximum_iterations'] ==\
-                    solver_parameters['newton_solver']['maximum_iterations']
+    assert p.solver_parameters['linear_solver'] ==\
+                    solver_parameters['linear_solver']
 
     with pytest.raises(ValueError):
         parameters = {'N': 2, 'K': [1]}
