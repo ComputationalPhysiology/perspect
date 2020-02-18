@@ -6,7 +6,7 @@ import dolfin as df
 from dolfin import (
         Constant, Expression, FacetNormal, FiniteElement, FunctionSpace,
         DirichletBC, Function, TestFunction, TrialFunction, Identity,
-        VectorElement, VectorFunctionSpace, MixedElement, 
+        VectorElement, VectorFunctionSpace, TensorFunctionSpace, MixedElement, 
         LinearVariationalProblem, LinearVariationalSolver
 )
 
@@ -112,7 +112,7 @@ class PorousProblem(object):
         p = self.pressure
 
         N = self.parameters['N']
-
+        
         # Get parameters
         rho = Constant(self.parameters['rho'])
         beta = [Constant(beta) for beta in self.parameters['beta']]
@@ -125,8 +125,8 @@ class PorousProblem(object):
         else:
             self.K = [Constant(k) for k in K]
         dt = self.parameters['dt']/self.parameters['steps']
-        qi = self.inflow_rate(self.parameters['qi'])
-        qo = self.inflow_rate(self.parameters['qo'])
+        self.qi = self.inflow_rate(self.parameters['qi'])
+        self.qo = self.inflow_rate(self.parameters['qo'])
         k = Constant(1/dt)
         theta = self.parameters['theta']
 
@@ -158,8 +158,7 @@ class PorousProblem(object):
             self._form += df.div(-rho*A[0]*df.grad(p))*v*dx
         else:
             self._form += sum([
-                    df.div(-rho*A[0]*df.grad(p.sub(i)))*v[i]*dx 
-                                                            for i in range(N)])
+                    df.div(-rho*A[0]*df.grad(p.sub(i)))*v[i]*dx for i in range(N)])
 
         # compartment coupling
         if N > 1:
@@ -181,9 +180,9 @@ class PorousProblem(object):
 
         # Add inflow/outflow terms
         if N == 1:
-            self._form -= rho*qi*v*dx + rho*qo*v*dx
+            self._form -= rho*self.qi*v*dx + rho*self.qo*v*dx
         else:
-            self._form -= rho*qi*v[0]*dx + rho*qo*v[-1]*dx
+            self._form -= rho*self.qi*v[0]*dx + rho*self.qo*v[-1]*dx
 
         # self._form = m*v*dx + df.div(-rho*df.grad(p))*v*dx - rho*qi*v*dx
 
@@ -198,6 +197,7 @@ class PorousProblem(object):
 
     def permeability_tensor(self, K):
         FS = VectorFunctionSpace(self.geometry.mesh, 'P', 1)
+        TS = TensorFunctionSpace(self.geometry.mesh, 'P', 1)
         d = self.geometry.dim()
         fibers = (1/df.norm(self.geometry.f0)) * self.geometry.f0
         if self.geometry.s0 is not None:
@@ -231,7 +231,8 @@ class PorousProblem(object):
                         (fibers[1], sheet[1])))
             ktensor = diag(df.as_vector([K, K/factor]))
 
-        permeability = df.dot(df.dot(ftensor, ktensor), df.inv(ftensor))
+        permeability = df.project(df.dot(
+                                df.dot(ftensor, ktensor), df.inv(ftensor)), TS)
         return permeability
 
 
@@ -291,7 +292,8 @@ class PorousProblem(object):
 
         logger.debug("Solving porous problem")
 
-        a, L = df.lhs(self._form), df.rhs(self._form)
+        a = df.lhs(self._form) 
+        L = df.rhs(self._form)
         problem = LinearVariationalProblem(a, L, self.state, bcs=bcs)
 
         solver = LinearVariationalSolver(problem)
@@ -300,7 +302,7 @@ class PorousProblem(object):
 
         for i in range(self.parameters['steps']):
             try:
-                self.parameters['qi'].t +=\
+                self.qi.t +=\
                                 self.parameters['dt']/self.parameters['steps']
             except AttributeError:
                 # If the Expression for qi does not have a time parameter
