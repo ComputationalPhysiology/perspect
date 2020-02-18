@@ -93,13 +93,15 @@ class PorousProblem(object):
         mesh = self.mesh
         self.state_space = FunctionSpace(mesh, elem)
         self.vector_space = FunctionSpace(mesh, v_elem)
+        pressure_space = FunctionSpace(mesh, P2)
         self.state = Function(self.state_space, name="m")
         self.state_previous = Function(self.state_space)
         self.state_test = TestFunction(self.state_space)
         self.displacement = Function(self.vector_space, name="du")
         self.mech_velocity = Function(self.vector_space)
-        self.pressure = Function(self.state_space, name="p")
-        self.darcy_flow = [Function(self.vector_space, name="w")
+        self.pressure = [Function(pressure_space, name="p{}".format(i))
+                                                            for i in range(N)]
+        self.darcy_flow = [Function(self.vector_space, name="w{}".format(i))
                                                             for i in range(N)]
 
 
@@ -154,11 +156,11 @@ class PorousProblem(object):
         else:
             A = [Constant(1.0)*K for K in self.K]
 
-        if N == 1:
-            self._form += df.div(-rho*A[0]*df.grad(p))*v*dx
-        else:
-            self._form += sum([
-                    df.div(-rho*A[0]*df.grad(p.sub(i)))*v[i]*dx for i in range(N)])
+        # if N == 1:
+        #     self._form += df.div(-rho*A[0]*df.grad(p[0]))*v*dx
+        # else:
+        self._form += sum([
+                    df.div(-rho*A[i]*df.grad(p[i]))*v[i]*dx for i in range(N)])
 
         # compartment coupling
         if N > 1:
@@ -213,7 +215,7 @@ class PorousProblem(object):
                 s0 = df.interpolate(Constant((1,1,1)), FS)
             sheet = df.project(s0 - df.dot(s0, fibers) * fibers, FS,
                                 solver_type="mumps")
-            sheet.vector().get_local()[:] /=\
+            sheet.vector()[:] /=\
                                 np.linalg.norm(sheet.vector().get_local())
             csheet = df.cross(fibers, sheet)
 
@@ -240,10 +242,10 @@ class PorousProblem(object):
         N = self.parameters['N']
         phi = self.parameters['phi']
         if N == 1:
-            self.pressure.assign(phi[0]*pressure)
+            self.pressure.vector()[:] *= phi[0]
         else:
             for i in range(N):
-                self.pressure.sub(i).assign(phi[i]*pressure)
+                self.pressure[i].vector()[:] *= phi[i]
         self.displacement.assign(displacement)
         self.mech_velocity.assign(mech_velocity)
 
@@ -271,9 +273,9 @@ class PorousProblem(object):
         else:
             A = [self.K[i] for i in range(N)]
         if N == 1:
-            L = [df.dot(-A[0]*df.grad(self.pressure), v[0])*dx]
+            L = [df.dot(-A[0]*df.grad(self.pressure[0]), v[0])*dx]
         else:
-            L = [df.dot(-A[i]*df.grad(self.pressure.sub(i)), v[i])*dx
+            L = [df.dot(-A[i]*df.grad(self.pressure[i]), v[i])*dx
                                                             for i in range(N)]
 
         w = [Function(self.vector_space) for i in range(N)]
