@@ -35,6 +35,8 @@ class Perspect(object):
             # set pulse log level
             pulse.parameters.update({'log_level': df.get_log_level()})
 
+            self.previous_mechanics = df.Function(self.mprob.state_space)
+
         # if parameters['particle_tracking']:
         #     w = self.pprob.darcy_flow
         #     self.lpart = LagrangianParticles(w)
@@ -113,21 +115,22 @@ class Perspect(object):
 
 
     def calculate_pressure(self, displacement, solid_pressure):
-        if self.pprob.parameters['N'] == 1:
-            pspace = self.pprob.state_space
-        else:
-            pspace = self.pprob.state_space.sub(0).collapse()
+        pspace = self.pprob.pressure_space
         F = df.variable(pulse.kinematics.DeformationGradient(displacement))
         return df.project(
                     -self.SecondPiolaStress(F, p=solid_pressure)[0, 0], pspace)
 
 
     def calculate_mech_velocity(self, displacement):
-        dt = self.pprob.parameters['dt']/self.pprob.parameters['steps']
-        return df.project(displacement/dt, self.pprob.vector_space)
+        dt = self.pprob.parameters['dt']
+        p_displacement, _ = self.previous_mechanics.split(deepcopy=True)
+        displacement, _ = self.mprob.state.split(deepcopy=True)
+        return df.project((displacement-p_displacement)/dt,
+                                                    self.pprob.vector_space)
 
 
     def iterate_mechanics(self, control, target, **kwargs):
+        self.previous_mechanics.assign(self.mprob.state)
         pulse.iterate.iterate(self.mprob, control, target, **kwargs)
 
 
