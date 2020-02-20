@@ -165,10 +165,10 @@ class PorousProblem(object):
         # compartment coupling
         if N > 1:
             # forward
-            self._form -= -J*sum([beta[i]*(p[i]-p[i+1])*v[i]*dx
+            self._form -= sum([-J*beta[i]*(p[i]-p[i+1])*v[i]*dx
                                                         for i in range(N-1)])
             # backward
-            self._form -= -J*sum([beta[i-1]*(p[i]-p[i-1])*v[i]*dx
+            self._form -= sum([-J*beta[i-1]*(p[i]-p[i-1])*v[i]*dx
                                                         for i in range(1, N)])
 
 
