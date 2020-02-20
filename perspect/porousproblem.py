@@ -196,7 +196,7 @@ class PorousProblem(object):
 
 
     def permeability_tensor(self, K):
-        FS = VectorFunctionSpace(self.geometry.mesh, 'P', 1)
+        FS = self.geometry.f0.function_space()
         TS = TensorFunctionSpace(self.geometry.mesh, 'P', 1)
         d = self.geometry.dim()
         fibers = Function(FS)
