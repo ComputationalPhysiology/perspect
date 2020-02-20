@@ -115,10 +115,7 @@ class Perspect(object):
 
 
     def calculate_pressure(self, displacement, solid_pressure):
-        if self.pprob.parameters['N'] == 1:
-            pspace = self.pprob.state_space
-        else:
-            pspace = self.pprob.state_space.sub(0).collapse()
+        pspace = self.pprob.pressure_space
         F = df.variable(pulse.kinematics.DeformationGradient(displacement))
         return df.project(
                     -self.SecondPiolaStress(F, p=solid_pressure)[0, 0], pspace)
